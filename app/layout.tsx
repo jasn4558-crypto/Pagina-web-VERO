@@ -1,7 +1,9 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
+import type { Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { CartProvider } from "@/components/CartProvider";
+import ViewToggle from "@/components/ViewToggle";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,6 +22,12 @@ export const metadata: Metadata = {
     "Productos artesanales hechos con amor. Compra fácil por WhatsApp.",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -32,6 +40,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-stone-50 text-stone-900">
         <CartProvider>{children}</CartProvider>
+        <ViewToggle />
         <Toaster position="bottom-right" richColors />
       </body>
     </html>
