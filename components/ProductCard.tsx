@@ -47,8 +47,8 @@ export default function ProductCard({
     <article className="group flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
       <div className="relative aspect-square w-full overflow-hidden bg-stone-100">
         {/* Badge Novedad */}
-        <span className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-coral-500 bg-gradient-to-r from-rose-500 to-orange-400 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
-          <Sparkles className="h-3 w-3" />
+        <span className="absolute left-1.5 top-1.5 z-10 flex items-center gap-0.5 rounded-full bg-gradient-to-r from-rose-500 to-orange-400 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm sm:left-2 sm:top-2 sm:px-2.5 sm:py-1 sm:text-xs">
+          <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
           Novedad
         </span>
 
@@ -62,7 +62,7 @@ export default function ProductCard({
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-stone-300">
-            <span className="text-4xl">🛍️</span>
+            <span className="text-3xl sm:text-4xl">🛍️</span>
           </div>
         )}
 
@@ -75,10 +75,10 @@ export default function ProductCard({
                 e.stopPropagation();
                 prevImage();
               }}
-              className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-stone-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white"
+              className="absolute left-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-stone-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white sm:h-8 sm:w-8 sm:left-2"
               aria-label="Imagen anterior"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
             </button>
             <button
               type="button"
@@ -86,14 +86,14 @@ export default function ProductCard({
                 e.stopPropagation();
                 nextImage();
               }}
-              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-stone-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white"
+              className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-stone-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white sm:h-8 sm:w-8 sm:right-2"
               aria-label="Imagen siguiente"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
             </button>
 
             {/* Indicadores */}
-            <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
+            <div className="absolute bottom-1 left-1/2 flex -translate-x-1/2 gap-1 sm:bottom-2 sm:gap-1.5">
               {images.map((_, i) => (
                 <button
                   key={i}
@@ -102,9 +102,9 @@ export default function ProductCard({
                     e.stopPropagation();
                     setImgIndex(i);
                   }}
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === imgIndex ? "w-4 bg-white" : "w-1.5 bg-white/60"
-                  }`}
+                  className={`h-1 rounded-full transition-all ${
+                    i === imgIndex ? "w-3 sm:w-4" : "w-1.5 sm:w-1.5"
+                  } bg-white`}
                   aria-label={`Ir a imagen ${i + 1}`}
                 />
               ))}
@@ -113,24 +113,24 @@ export default function ProductCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-4 sm:p-5">
-        <h3 className="text-base font-semibold text-stone-900 sm:text-lg">
+      <div className="flex flex-1 flex-col gap-1.5 p-3 sm:gap-2 sm:p-4 lg:p-5">
+        <h3 className="text-sm font-semibold text-stone-900 sm:text-base lg:text-lg">
           {nombre}
         </h3>
-        <p className="line-clamp-2 text-sm leading-relaxed text-stone-500">
+        <p className="line-clamp-2 text-xs leading-relaxed text-stone-500 sm:text-sm">
           {descripcion}
         </p>
 
-        <div className="mt-auto flex items-center justify-between pt-3">
-          <span className="text-xl font-bold text-emerald-700">
+        <div className="mt-auto flex items-center justify-between pt-2 sm:pt-3">
+          <span className="text-lg font-bold text-emerald-700 sm:text-xl">
             ₡{precio.toLocaleString("es-CR")}
           </span>
           <button
             type="button"
             onClick={handleAddToCart}
-            className="flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-emerald-500 hover:shadow-lg active:scale-95"
+            className="flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-md transition-all hover:bg-emerald-500 hover:shadow-lg active:scale-95 sm:gap-2 sm:px-5 sm:py-3 sm:text-sm"
           >
-            <ShoppingCart className="h-4 w-4" />
+            <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
             Agregar
           </button>
         </div>
