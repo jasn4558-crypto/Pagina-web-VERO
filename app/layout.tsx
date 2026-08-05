@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import { CartProvider } from "@/components/CartProvider";
 import "./globals.css";
 
@@ -31,6 +32,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-stone-50 text-stone-900">
         <CartProvider>{children}</CartProvider>
+        <Toaster position="bottom-right" richColors />
       </body>
     </html>
   );

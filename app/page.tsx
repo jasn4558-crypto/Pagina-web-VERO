@@ -1,6 +1,8 @@
 import ProductCard from "@/components/ProductCard";
 import FloatingCart from "@/components/FloatingCart";
 import CategorySidebar from "@/components/CategorySidebar";
+import HeroBanner from "@/components/HeroBanner";
+import TrustBadges from "@/components/TrustBadges";
 import { supabase } from "@/lib/supabase";
 
 // Siempre consulta la base de datos fresca (evita caché agresiva de Server Components)
@@ -62,22 +64,29 @@ export default async function Home({
   ];
 
   return (
-    <main className="flex-1 w-full max-w-7xl mx-auto bg-stone-50">
-      <div className="flex">
-        {/* Sidebar de categorías (desktop: estático, móvil: botón hamburguesa) */}
+    <main className="flex-1 w-full bg-stone-50">
+      {/* 1. Hero Banner */}
+      <HeroBanner />
+
+      {/* 2. Trust Badges */}
+      <TrustBadges />
+
+      {/* 3. Contenido principal: Sidebar + Grid de productos */}
+      <div id="productos" className="mx-auto flex max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <CategorySidebar
           categories={allCategories}
           selectedId={categoriaId ?? "all"}
         />
 
-        <div className="flex-1 px-4 sm:px-6 lg:px-8 py-10">
-          <header className="mb-10 text-center">
-            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-stone-900">
-              Tienda <span className="text-emerald-600">Verónica</span>
-            </h1>
-            <p className="mx-auto mt-3 max-w-xl text-base text-stone-600">
-              Productos artesanales hechos con amor y dedicación.
-              Agrega al carrito y pide por WhatsApp.
+        <div className="flex-1 lg:ml-8">
+          <header className="mb-8">
+            <h2 className="text-2xl font-bold text-stone-900 sm:text-3xl">
+              {categoriaId
+                ? allCategories.find((c) => c.id === categoriaId)?.nombre ?? "Productos"
+                : "Todos los productos"}
+            </h2>
+            <p className="mt-1 text-stone-600">
+              {products.length} producto(s) disponible(s)
             </p>
           </header>
 

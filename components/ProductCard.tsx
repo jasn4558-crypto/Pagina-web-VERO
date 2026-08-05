@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
+import { ShoppingCart, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { useCart } from "./CartProvider";
 
 interface ProductCardProps {
@@ -35,9 +36,22 @@ export default function ProductCard({
     setImgIndex((i) => (i + 1) % images.length);
   };
 
+  const handleAddToCart = () => {
+    addToCart({ id, nombre, precio, imagen: imagenPrincipal });
+    toast.success("¡Producto agregado al carrito!", {
+      description: nombre,
+    });
+  };
+
   return (
-    <article className="group flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
+    <article className="group flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
       <div className="relative aspect-square w-full overflow-hidden bg-stone-100">
+        {/* Badge Novedad */}
+        <span className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-coral-500 bg-gradient-to-r from-rose-500 to-orange-400 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+          <Sparkles className="h-3 w-3" />
+          Novedad
+        </span>
+
         {imagenPrincipal ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -113,10 +127,8 @@ export default function ProductCard({
           </span>
           <button
             type="button"
-            onClick={() =>
-              addToCart({ id, nombre, precio, imagen: imagenPrincipal })
-            }
-            className="flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95"
+            onClick={handleAddToCart}
+            className="flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-emerald-500 hover:shadow-lg active:scale-95"
           >
             <ShoppingCart className="h-4 w-4" />
             Agregar
