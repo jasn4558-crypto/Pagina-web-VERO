@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ShoppingCart, X, Plus, Minus, Trash2, Phone } from "lucide-react";
+import { ShoppingCart, X, Plus, Minus, Trash2, Phone, CheckCircle2 } from "lucide-react";
 import { useCart } from "./CartProvider";
-import { processOrder } from "@/lib/orderManager";
+import { createOrder } from "@/lib/orderManager";
 
 export default function FloatingCart() {
   const { items, totalItems, subtotal, updateQuantity, removeFromCart, clearCart } = useCart();
   const [isOpen, setIsOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const handleGenerateOrder = async () => {
     if (!phone.trim()) {
@@ -17,10 +18,11 @@ export default function FloatingCart() {
       return;
     }
     setIsGenerating(true);
+    setSuccessMessage("");
     try {
-      await processOrder(items, phone.trim());
+      await createOrder(items, phone.trim());
+      setSuccessMessage(`¡Pedido recibido! Nos pondremos en contacto al número ${phone.trim()}`);
       clearCart();
-      setIsOpen(false);
       setPhone("");
     } catch (error) {
       console.error("Error al generar el pedido:", error);
@@ -30,7 +32,7 @@ export default function FloatingCart() {
     }
   };
 
-  if (totalItems === 0 && !isOpen) return null;
+  if (totalItems === 0 && !isOpen && !successMessage) return null;
 
   return (
     <>
@@ -85,6 +87,14 @@ export default function FloatingCart() {
                 </button>
               </div>
             </div>
+
+            {/* Mensaje de éxito */}
+            {successMessage && (
+              <div className="flex items-start gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-3">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                <p className="text-sm font-medium text-emerald-700">{successMessage}</p>
+              </div>
+            )}
 
             {/* Lista de items */}
             <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -170,7 +180,7 @@ export default function FloatingCart() {
                 type="button"
                 onClick={handleGenerateOrder}
                 disabled={isGenerating || items.length === 0}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Phone className="h-4 w-4" />
                 {isGenerating ? "Generando..." : "Generar Pedido"}
