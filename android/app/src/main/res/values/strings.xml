@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tienda Verónica</string>
+    <string name="title_activity_main">Tienda Verónica</string>
+    <string name="package_name">com.tiendaveronica.app</string>
+    <string name="custom_url_scheme">com.tiendaveronica.app</string>
+</resources>
