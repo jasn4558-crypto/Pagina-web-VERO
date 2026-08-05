@@ -1,10 +1,11 @@
 import { jsPDF } from "jspdf";
 import type { CartItem } from "@/components/CartProvider";
+import { supabase } from "@/lib/supabase";
 
 /**
- * Genera un PDF sencillo con el resumen del pedido.
+ * Genera un PDF sencillo con el resumen del pedido y retorna el Blob.
  */
-export function generateOrderPDF(cart: CartItem[], userPhone: string): jsPDF {
+export function generateOrderPDF(cart: CartItem[], userPhone: string): Blob {
   const doc = new jsPDF();
   const now = new Date();
 
@@ -78,33 +79,49 @@ export function generateOrderPDF(cart: CartItem[], userPhone: string): jsPDF {
   doc.setTextColor(150);
   doc.text("Gracias por tu compra.", 14, 290);
 
-  // Guardar
-  doc.save(`pedido-${now.getTime()}.pdf`);
-
-  return doc;
+  // Retornar el PDF como Blob (sin descargar localmente)
+  return doc.output("blob");
 }
 
 /**
- * Procesa el pedido: genera el PDF y simula el envío por WhatsApp.
- * En la Fase 3 se integrará la subida del PDF a Supabase Storage.
+ * Procesa el pedido: genera el PDF, lo sube a Supabase Storage
+ * y abre WhatsApp con la URL pública del PDF.
  */
 export async function processOrder(cart: CartItem[], userPhone: string): Promise<void> {
   if (cart.length === 0) {
     throw new Error("El carrito está vacío.");
   }
 
-  // Generar PDF (esto descarga el archivo en el navegador)
-  generateOrderPDF(cart, userPhone);
+  // 1. Generar PDF como Blob
+  const pdfBlob = generateOrderPDF(cart, userPhone);
 
-  // Simular apertura de WhatsApp con el mensaje del pedido
+  // 2. Subir el PDF al bucket tienda-archivos en la subcarpeta pedidos/
+  const fileName = `pedido-${Date.now()}.pdf`;
+  const filePath = `pedidos/${fileName}`;
+  const { error: uploadError } = await supabase.storage
+    .from("tienda-archivos")
+    .upload(filePath, pdfBlob, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: "application/pdf",
+    });
+
+  if (uploadError) {
+    throw new Error(`Error al subir el PDF: ${uploadError.message}`);
+  }
+
+  // 3. Obtener URL pública del PDF
+  const { data: publicUrlData } = supabase.storage
+    .from("tienda-archivos")
+    .getPublicUrl(filePath);
+  const pdfUrl = publicUrlData.publicUrl;
+
+  // 4. Construir mensaje de WhatsApp con la URL del PDF
   const numeroLimpio = userPhone.replace(/[^\d]/g, "");
-  const resumen = cart
-    .map((item) => `• ${item.nombre} x${item.cantidad} = ₡${(item.precio * item.cantidad).toLocaleString("es-CR")}`)
-    .join("\n");
-  const subtotal = cart.reduce((acc, i) => acc + i.precio * i.cantidad, 0);
   const mensaje = encodeURIComponent(
-    `Hola!, quiero hacer el siguiente pedido:\n\n${resumen}\n\nSubtotal: ₡${subtotal.toLocaleString("es-CR")}\nTotal + Envío (según ubicación)`
+    `Hola, quiero realizar este pedido. Mi número de contacto es ${userPhone}. Aquí está el detalle: ${pdfUrl}`
   );
 
+  // 5. Abrir WhatsApp en una nueva pestaña
   window.open(`https://wa.me/${numeroLimpio}?text=${mensaje}`, "_blank");
 }
