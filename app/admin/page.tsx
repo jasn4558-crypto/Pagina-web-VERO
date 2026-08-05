@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { Package, Upload, Loader2, CheckCircle2 } from "lucide-react";
+import { useState, FormEvent, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Package, Upload, Loader2, CheckCircle2, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function AdminPage() {
+  const router = useRouter();
+  const [session, setSession] = useState<any>(null);
+  const [checking, setChecking] = useState(true);
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [precio, setPrecio] = useState("");
@@ -12,6 +16,26 @@ export default function AdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  // Verificar sesión al montar
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push("/admin/login");
+      } else {
+        setSession(session);
+      }
+      setChecking(false);
+    };
+    checkSession();
+  }, [router]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+    router.refresh();
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -32,7 +56,6 @@ export default function AdminPage() {
     setIsSubmitting(true);
     try {
       // 1. Subir imagen al bucket tienda-archivos en la subcarpeta productos/
-      const fileExt = imagen.name.split(".").pop();
       const filePath = `productos/${Date.now()}-${imagen.name}`;
       const { error: uploadError } = await supabase.storage
         .from("tienda-archivos")
@@ -75,16 +98,41 @@ export default function AdminPage() {
     }
   };
 
+  // Mientras se verifica la sesión
+  if (checking) {
+    return (
+      <main className="flex flex-1 items-center justify-center px-4 py-8">
+        <div className="flex items-center gap-2 text-zinc-500">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="text-sm">Verificando sesión...</span>
+        </div>
+      </main>
+    );
+  }
+
+  // Si no hay sesión, no renderizar (se redirige en el useEffect)
+  if (!session) return null;
+
   return (
     <main className="flex-1 w-full max-w-2xl mx-auto px-4 py-8">
-      <header className="mb-8">
-        <h1 className="flex items-center gap-2 text-3xl font-bold text-zinc-900">
-          <Package className="h-7 w-7" />
-          Panel de Administración
-        </h1>
-        <p className="mt-1 text-zinc-600">
-          Agrega nuevos productos a la tienda.
-        </p>
+      <header className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="flex items-center gap-2 text-3xl font-bold text-zinc-900">
+            <Package className="h-7 w-7" />
+            Panel de Administración
+          </h1>
+          <p className="mt-1 text-zinc-600">
+            Agrega nuevos productos a la tienda.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="flex items-center gap-2 rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+        >
+          <LogOut className="h-4 w-4" />
+          Cerrar Sesión
+        </button>
       </header>
 
       <form
