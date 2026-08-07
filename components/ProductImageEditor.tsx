@@ -41,8 +41,10 @@ interface ProductImageEditorProps {
   productId: string;
   productName: string;
   existingImages: string[];
+  initialImageFile?: File | null;
   onClose: () => void;
   onSaved: () => void;
+  onSaveNewFile?: (file: File) => void;
 }
 
 const CANVAS_SIZE = 800;
@@ -59,8 +61,10 @@ export default function ProductImageEditor({
   productId,
   productName,
   existingImages,
+  initialImageFile,
   onClose,
   onSaved,
+  onSaveNewFile,
 }: ProductImageEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -176,9 +180,11 @@ export default function ProductImageEditor({
 
   useEffect(() => { render(); }, [render, bgColor, activeOverlay, isBrushMode]);
 
-  // ─── Cargar imagen base existente ───────────────────────────────────────────
+  // ─── Cargar imagen base (File o URL) ──────────────────────────────────────────
   useEffect(() => {
-    if (existingImages[0]) {
+    if (initialImageFile) {
+      loadBaseImage(initialImageFile);
+    } else if (existingImages[0]) {
       const img = new Image() as HTMLImageElement & { renderX: number; renderY: number; renderW: number; renderH: number };
       img.crossOrigin = "anonymous";
       img.onload = () => {
@@ -193,7 +199,7 @@ export default function ProductImageEditor({
       };
       img.src = existingImages[0];
     }
-  }, [existingImages]);
+  }, [existingImages, initialImageFile]);
 
   // ─── Helpers de coordenadas ─────────────────────────────────────────────────
   function getCoords(e: MouseEvent | TouchEvent): { x: number; y: number } {
@@ -398,7 +404,7 @@ export default function ProductImageEditor({
     render();
   };
 
-  // ─── Guardar imagen en Supabase ──────────────────────────────────────────────
+  // ─── Guardar imagen en Supabase o retornar nuevo File ───────────────────────
   const handleSave = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -410,8 +416,19 @@ export default function ProductImageEditor({
     try {
       render(true); // Renderizar sin handles de selección
       const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((b) => b ? resolve(b) : reject(new Error("Canvas vació")), "image/jpeg", 0.92);
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Canvas vacío"))), "image/jpeg", 0.92);
       });
+
+      if (onSaveNewFile) {
+        const editedFile = new File([blob], `editada-${Date.now()}.jpg`, { type: "image/jpeg" });
+        onSaveNewFile(editedFile);
+        setSavedOk(true);
+        setTimeout(() => {
+          onSaved();
+          onClose();
+        }, 800);
+        return;
+      }
 
       const filePath = `productos/${Date.now()}-editor-${productId.slice(0, 8)}.jpg`;
       const { error: uploadErr } = await supabase.storage

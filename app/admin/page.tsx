@@ -96,6 +96,8 @@ export default function AdminPage() {
 
   // Editor de imagen por producto
   const [editorProduct, setEditorProduct] = useState<Product | null>(null);
+  const [editingNewFile, setEditingNewFile] = useState<File | null>(null);
+  const [editingNewFileIndex, setEditingNewFileIndex] = useState<number | null>(null);
 
   // Encabezado
   const [headerBadgeText, setHeaderBadgeText] = useState("");
@@ -555,9 +557,29 @@ export default function AdminPage() {
                   />
                 </div>
                 {imagenes.length > 0 && (
-                  <p className="text-xs text-stone-500">
-                    {imagenes.length} imagen(es) seleccionada(s).
-                  </p>
+                  <div className="flex flex-col gap-2 mt-1">
+                    <p className="text-xs font-semibold text-stone-600">
+                      {imagenes.length} imagen(es) seleccionada(s) — Toca "Editar" para retocar antes de publicar:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {imagenes.map((file, idx) => (
+                        <div key={idx} className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 p-2">
+                          <span className="max-w-[120px] truncate text-xs text-stone-700">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingNewFile(file);
+                              setEditingNewFileIndex(idx);
+                            }}
+                            className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-emerald-700"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Editar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
                 {editandoId && (
                   <p className="text-xs text-stone-400">
@@ -1092,7 +1114,7 @@ export default function AdminPage() {
       )}
     </main>
 
-    {/* ===== EDITOR DE IMAGEN ===== */}
+    {/* ===== EDITOR DE IMAGEN EXISTENTE ===== */}
     {editorProduct && (
       <ProductImageEditor
         productId={editorProduct.id}
@@ -1102,6 +1124,30 @@ export default function AdminPage() {
         onSaved={() => {
           cargarProductos();
           setEditorProduct(null);
+        }}
+      />
+    )}
+
+    {/* ===== EDITOR DE IMAGEN NUEVA SIN PUBLICAR ===== */}
+    {editingNewFile && editingNewFileIndex !== null && (
+      <ProductImageEditor
+        productId="nuevo"
+        productName={nombre || "Nuevo Producto"}
+        existingImages={[]}
+        initialImageFile={editingNewFile}
+        onClose={() => {
+          setEditingNewFile(null);
+          setEditingNewFileIndex(null);
+        }}
+        onSaved={() => {}}
+        onSaveNewFile={(newFile) => {
+          setImagenes((prev) => {
+            const updated = [...prev];
+            updated[editingNewFileIndex] = newFile;
+            return updated;
+          });
+          setEditingNewFile(null);
+          setEditingNewFileIndex(null);
         }}
       />
     )}

@@ -4,6 +4,7 @@ import CategorySidebar from "@/components/CategorySidebar";
 import HeroBanner from "@/components/HeroBanner";
 import TrustBadges from "@/components/TrustBadges";
 import ViewToggle from "@/components/ViewToggle";
+import UserMenu from "@/components/UserMenu";
 import { supabase } from "@/lib/supabase";
 
 // Siempre consulta la base de datos fresca (evita caché agresiva de Server Components)
@@ -116,6 +117,7 @@ export default async function Home({
         </div>
       </div>
 
+      <UserMenu />
       <FloatingCart />
     </main>
   );
