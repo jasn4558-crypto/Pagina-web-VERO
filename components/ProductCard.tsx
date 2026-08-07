@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ShoppingCart, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { ShoppingCart, ChevronLeft, ChevronRight, Sparkles, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { useCart } from "./CartProvider";
 
@@ -44,11 +44,12 @@ export default function ProductCard({
   };
 
   return (
-    <article className="group flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-      <div className="relative aspect-square w-full overflow-hidden bg-stone-100">
+    <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-sm transition-all duration-500 hover:-translate-y-1.5 hover:shadow-xl">
+      {/* Contenedor de Imagen */}
+      <div className="relative aspect-[4/5] w-full overflow-hidden bg-stone-100">
         {/* Badge Novedad */}
-        <span className="absolute left-1.5 top-1.5 z-10 flex items-center gap-0.5 rounded-full bg-gradient-to-r from-rose-500 to-orange-400 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm sm:left-2 sm:top-2 sm:px-2.5 sm:py-1 sm:text-xs">
-          <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+        <span className="absolute left-2.5 top-2.5 z-10 flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
+          <Sparkles className="h-3 w-3" />
           Novedad
         </span>
 
@@ -57,16 +58,16 @@ export default function ProductCard({
           <img
             src={images[imgIndex] ?? imagenPrincipal}
             alt={nombre}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
             loading="lazy"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-stone-300">
-            <span className="text-3xl sm:text-4xl">🛍️</span>
+            <span className="text-4xl">🛍️</span>
           </div>
         )}
 
-        {/* Carrusel: flechas (solo si hay más de 1 imagen) */}
+        {/* Carrusel: flechas si hay más de 1 imagen */}
         {images.length > 1 && (
           <>
             <button
@@ -75,10 +76,10 @@ export default function ProductCard({
                 e.stopPropagation();
                 prevImage();
               }}
-              className="absolute left-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-stone-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white sm:h-8 sm:w-8 sm:left-2"
+              className="absolute left-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-stone-800 shadow-md backdrop-blur-sm transition-all hover:bg-white active:scale-95"
               aria-label="Imagen anterior"
             >
-              <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               type="button"
@@ -86,14 +87,14 @@ export default function ProductCard({
                 e.stopPropagation();
                 nextImage();
               }}
-              className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-stone-700 shadow-sm backdrop-blur-sm transition-colors hover:bg-white sm:h-8 sm:w-8 sm:right-2"
+              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-stone-800 shadow-md backdrop-blur-sm transition-all hover:bg-white active:scale-95"
               aria-label="Imagen siguiente"
             >
-              <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
+              <ChevronRight className="h-4 w-4" />
             </button>
 
             {/* Indicadores */}
-            <div className="absolute bottom-1 left-1/2 flex -translate-x-1/2 gap-1 sm:bottom-2 sm:gap-1.5">
+            <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
               {images.map((_, i) => (
                 <button
                   key={i}
@@ -103,8 +104,8 @@ export default function ProductCard({
                     setImgIndex(i);
                   }}
                   className={`h-1 rounded-full transition-all ${
-                    i === imgIndex ? "w-3 sm:w-4" : "w-1.5 sm:w-1.5"
-                  } bg-white`}
+                    i === imgIndex ? "w-4 bg-emerald-600" : "w-1.5 bg-white/80"
+                  }`}
                   aria-label={`Ir a imagen ${i + 1}`}
                 />
               ))}
@@ -113,25 +114,32 @@ export default function ProductCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-1.5 p-3 sm:gap-2 sm:p-4 lg:p-5">
-        <h3 className="text-sm font-semibold text-stone-900 sm:text-base lg:text-lg">
-          {nombre}
-        </h3>
-        <p className="line-clamp-2 text-xs leading-relaxed text-stone-500 sm:text-sm">
-          {descripcion}
-        </p>
+      {/* Detalles del Producto */}
+      <div className="flex flex-1 flex-col justify-between p-4 sm:p-5">
+        <div>
+          <h3 className="text-sm font-bold text-stone-900 transition-colors group-hover:text-emerald-700 sm:text-base line-clamp-1">
+            {nombre}
+          </h3>
+          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-500">
+            {descripcion}
+          </p>
+        </div>
 
-        <div className="mt-auto flex items-center justify-between pt-2 sm:pt-3">
-          <span className="text-lg font-bold text-emerald-700 sm:text-xl">
-            ₡{precio.toLocaleString("es-CR")}
-          </span>
+        <div className="mt-4 flex items-center justify-between pt-2 border-t border-stone-100">
+          <div>
+            <span className="text-xs uppercase font-semibold text-stone-400 block">Precio</span>
+            <span className="text-base font-extrabold text-stone-900 sm:text-lg">
+              ₡{precio.toLocaleString("es-CR")}
+            </span>
+          </div>
+
           <button
             type="button"
             onClick={handleAddToCart}
-            className="flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-md transition-all hover:bg-emerald-500 hover:shadow-lg active:scale-95 sm:gap-2 sm:px-5 sm:py-3 sm:text-sm"
+            className="flex items-center gap-1.5 rounded-full bg-stone-900 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-emerald-600 hover:shadow-md active:scale-95 sm:px-5 sm:py-2.5 sm:text-sm"
           >
-            <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
-            Agregar
+            <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span>Agregar</span>
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@ import FloatingCart from "@/components/FloatingCart";
 import CategorySidebar from "@/components/CategorySidebar";
 import HeroBanner from "@/components/HeroBanner";
 import TrustBadges from "@/components/TrustBadges";
+import ViewToggle from "@/components/ViewToggle";
 import { supabase } from "@/lib/supabase";
 
 // Siempre consulta la base de datos fresca (evita caché agresiva de Server Components)
@@ -63,6 +64,10 @@ export default async function Home({
     })),
   ];
 
+  const currentCategoryName = categoriaId
+    ? allCategories.find((c) => c.id === categoriaId)?.nombre ?? "Productos"
+    : "Todos los productos";
+
   return (
     <main className="flex-1 w-full bg-stone-50">
       {/* 1. Hero Banner */}
@@ -71,36 +76,38 @@ export default async function Home({
       {/* 2. Trust Badges */}
       <TrustBadges />
 
-      {/* 3. Contenido principal: Sidebar + Grid de productos */}
-      <div id="productos" className="mx-auto flex max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      {/* 3. Contenido principal con Categorías Horizontales Arriba */}
+      <div id="productos" className="relative w-full">
+        {/* Barra de Categorías Horizontal (Sticky Top) */}
         <CategorySidebar
           categories={allCategories}
           selectedId={categoriaId ?? "all"}
         />
 
-        <div className="flex-1 lg:ml-8">
-          <header className="mb-8">
-            <h2 className="text-2xl font-bold text-stone-900 sm:text-3xl">
-              {categoriaId
-                ? allCategories.find((c) => c.id === categoriaId)?.nombre ?? "Productos"
-                : "Todos los productos"}
-            </h2>
-            <p className="mt-1 text-stone-600">
-              {products.length} producto(s) disponible(s)
-            </p>
+        {/* Cuadrícula de Productos (2 col en móvil, 3 en md, 4 en lg) */}
+        <div className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+          <header className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-extrabold uppercase tracking-tight text-stone-900 sm:text-2xl">
+                {currentCategoryName}
+              </h2>
+              <p className="mt-0.5 text-xs text-stone-500 sm:text-sm">
+                {products.length} producto(s) disponible(s)
+              </p>
+            </div>
           </header>
 
           {products.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-stone-300 bg-white/60 px-6 py-20 text-center">
-              <p className="text-stone-500">
-                No hay productos disponibles por el momento.
+            <div className="rounded-3xl border border-dashed border-stone-300 bg-white/60 px-6 py-20 text-center shadow-sm">
+              <p className="text-stone-500 font-medium">
+                No hay productos disponibles en esta categoría.
               </p>
-              <p className="mt-1 text-sm text-stone-400">
-                Vuelve pronto, estamos preparando novedades. ✨
+              <p className="mt-1 text-xs text-stone-400">
+                Prueba seleccionando otra categoría o vuelve pronto. ✨
               </p>
             </div>
           ) : (
-            <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
+            <section className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
               {products.map((product) => (
                 <ProductCard key={product.id} {...product} />
               ))}
