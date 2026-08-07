@@ -25,6 +25,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getHeaderConfig, saveHeaderConfig, HeaderConfig } from "@/lib/configManager";
 import { generateOrderPDF } from "@/lib/pdfGenerator";
+import ProductImageEditor from "@/components/ProductImageEditor";
 
 interface Product {
   id: string;
@@ -92,6 +93,9 @@ export default function AdminPage() {
     const num = 421 + oldestIndex;
     return String(num).padStart(7, "0");
   };
+
+  // Editor de imagen por producto
+  const [editorProduct, setEditorProduct] = useState<Product | null>(null);
 
   // Encabezado
   const [headerBadgeText, setHeaderBadgeText] = useState("");
@@ -402,6 +406,7 @@ export default function AdminPage() {
   ];
 
   return (
+    <>
     <main className="flex-1 w-full max-w-7xl mx-auto bg-stone-50 px-4 sm:px-6 lg:px-8 py-8">
       <header className="mb-6 flex items-start justify-between">
         <div>
@@ -647,6 +652,14 @@ export default function AdminPage() {
                           {categorias.find((c) => c.id === producto.categoria_id)?.nombre ?? "Sin categoría"}
                         </span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditorProduct(producto)}
+                        className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-violet-600 transition-colors hover:bg-violet-50"
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                        Imagen
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleEdit(producto)}
@@ -1078,5 +1091,20 @@ export default function AdminPage() {
         </section>
       )}
     </main>
+
+    {/* ===== EDITOR DE IMAGEN ===== */}
+    {editorProduct && (
+      <ProductImageEditor
+        productId={editorProduct.id}
+        productName={editorProduct.nombre}
+        existingImages={editorProduct.imagenes}
+        onClose={() => setEditorProduct(null)}
+        onSaved={() => {
+          cargarProductos();
+          setEditorProduct(null);
+        }}
+      />
+    )}
+    </>
   );
 }
