@@ -82,6 +82,16 @@ export default function AdminPage() {
   const [pedidos, setPedidos] = useState<Order[]>([]);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
   const [selectedOrderImages, setSelectedOrderImages] = useState<Order | null>(null);
+  const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
+
+  const getNumPedido = (pedido: Order, indexInDesc: number) => {
+    if (pedido.items?.[0]?.numero_pedido) {
+      return String(pedido.items[0].numero_pedido);
+    }
+    const oldestIndex = Math.max(0, pedidos.length - 1 - indexInDesc);
+    const num = 421 + oldestIndex;
+    return String(num).padStart(7, "0");
+  };
 
   // Encabezado
   const [headerBadgeText, setHeaderBadgeText] = useState("");
@@ -790,6 +800,7 @@ export default function AdminPage() {
                 <table className="w-full min-w-[750px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-stone-100 text-xs uppercase tracking-wide text-stone-400">
+                      <th className="px-4 py-3 font-medium">N° Pedido</th>
                       <th className="px-4 py-3 font-medium">Fecha</th>
                       <th className="px-4 py-3 font-medium">Teléfono</th>
                       <th className="px-4 py-3 font-medium">Total</th>
@@ -799,67 +810,89 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-50">
-                    {pedidos.map((pedido) => (
-                      <tr key={pedido.id}>
-                        <td className="px-4 py-3 text-stone-600">
-                          {pedido.created_at
-                            ? new Date(pedido.created_at).toLocaleString("es-CR")
-                            : "—"}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-stone-900">
-                          {pedido.telefono}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-emerald-700">
-                          ₡{pedido.total.toLocaleString("es-CR")}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col gap-1.5">
-                            <ul className="flex flex-col gap-0.5">
-                              {(pedido.items ?? []).map((item: any, i: number) => (
-                                <li key={i} className="text-xs text-stone-600 font-medium">
-                                  {item.nombre} × {item.cantidad}
-                                </li>
-                              ))}
-                            </ul>
+                    {pedidos.map((pedido, index) => {
+                      const numPedidoStr = getNumPedido(pedido, index);
+                      const isGeneratingThis = generatingPdfId === pedido.id;
+                      return (
+                        <tr key={pedido.id}>
+                          <td className="px-4 py-3 font-bold text-stone-900">
+                            #{numPedidoStr}
+                          </td>
+                          <td className="px-4 py-3 text-stone-600">
+                            {pedido.created_at
+                              ? new Date(pedido.created_at).toLocaleString("es-CR")
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-stone-900">
+                            {pedido.telefono}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-emerald-700">
+                            ₡{pedido.total.toLocaleString("es-CR")}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col gap-1.5">
+                              <ul className="flex flex-col gap-0.5">
+                                {(pedido.items ?? []).map((item: any, i: number) => (
+                                  <li key={i} className="text-xs text-stone-600 font-medium">
+                                    {item.nombre} × {item.cantidad}
+                                  </li>
+                                ))}
+                              </ul>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedOrderImages(pedido)}
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-800 transition-colors"
+                              >
+                                <ZoomIn className="h-3.5 w-3.5" />
+                                Ver / Ampliar Imágenes
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={pedido.estado}
+                              onChange={(e) => handleCambiarEstado(pedido.id, e.target.value)}
+                              className={`rounded-full border-0 px-3 py-1.5 text-xs font-semibold outline-none ${
+                                pedido.estado === "completado"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : pedido.estado === "cancelado"
+                                  ? "bg-rose-50 text-rose-600"
+                                  : "bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              <option value="pendiente">Pendiente</option>
+                              <option value="completado">Completado</option>
+                              <option value="cancelado">Cancelado</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-right">
                             <button
                               type="button"
-                              onClick={() => setSelectedOrderImages(pedido)}
-                              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-800 transition-colors"
+                              disabled={isGeneratingThis}
+                              onClick={async () => {
+                                setGeneratingPdfId(pedido.id);
+                                try {
+                                  await generateOrderPDF({
+                                    ...pedido,
+                                    numero_pedido: numPedidoStr,
+                                  });
+                                } finally {
+                                  setGeneratingPdfId(null);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-stone-900 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-600 transition-colors disabled:opacity-50"
                             >
-                              <ZoomIn className="h-3.5 w-3.5" />
-                              Ver / Ampliar Imágenes
+                              {isGeneratingThis ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5" />
+                              )}
+                              {isGeneratingThis ? "Generando..." : "Descargar PDF"}
                             </button>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <select
-                            value={pedido.estado}
-                            onChange={(e) => handleCambiarEstado(pedido.id, e.target.value)}
-                            className={`rounded-full border-0 px-3 py-1.5 text-xs font-semibold outline-none ${
-                              pedido.estado === "completado"
-                                ? "bg-emerald-50 text-emerald-700"
-                                : pedido.estado === "cancelado"
-                                ? "bg-rose-50 text-rose-600"
-                                : "bg-amber-50 text-amber-700"
-                            }`}
-                          >
-                            <option value="pendiente">Pendiente</option>
-                            <option value="completado">Completado</option>
-                            <option value="cancelado">Cancelado</option>
-                          </select>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => generateOrderPDF(pedido)}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-stone-900 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-600 transition-colors"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                            Descargar PDF
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -875,7 +908,7 @@ export default function AdminPage() {
             <div className="flex items-center justify-between border-b border-stone-100 pb-4 mb-4">
               <div>
                 <h3 className="text-lg font-bold text-stone-900">
-                  Imágenes del Pedido #{selectedOrderImages.id.slice(0, 8)}
+                  Imágenes del Pedido #{getNumPedido(selectedOrderImages, pedidos.findIndex(p => p.id === selectedOrderImages.id))}
                 </h3>
                 <p className="text-xs text-stone-500">
                   Cliente: {selectedOrderImages.telefono} — Total: ₡{selectedOrderImages.total.toLocaleString("es-CR")}

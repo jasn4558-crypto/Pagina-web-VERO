@@ -36,9 +36,9 @@ export default function FloatingCart() {
     setIsGenerating(true);
     setSuccessMessage("");
     try {
-      await createOrder(items, phone.trim());
-      setSuccessMessage(`¡Pedido recibido! Nos pondremos en contacto al número ${phone.trim()}`);
-      toast.success("¡Pedido generado exitosamente!");
+      const numPedido = await createOrder(items, phone.trim());
+      setSuccessMessage(`¡Pedido recibido! Tu N° de orden es #${numPedido}. Nos pondremos en contacto al número ${phone.trim()}`);
+      toast.success(`¡Pedido #${numPedido} generado exitosamente!`);
       clearCart();
       setPhone("");
     } catch (error) {
