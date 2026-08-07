@@ -1,13 +1,35 @@
-﻿"use client";
+"use client";
 
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ShieldCheck, Store } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function ViewToggle() {
   const router = useRouter();
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const isAdminRoute = pathname.startsWith("/admin");
+
+  useEffect(() => {
+    // Verificar sesión inicial
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAdmin(!!session);
+    });
+
+    // Escuchar cambios de sesión (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setIsAdmin(!!session);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Solo mostrar si hay sesión activa de admin
+  if (!isAdmin) return null;
 
   const handleToggle = () => {
     if (isAdminRoute) {
@@ -42,3 +64,4 @@ export default function ViewToggle() {
     </button>
   );
 }
+
