@@ -13,12 +13,12 @@ export default function ViewToggle() {
   const isAdminRoute = pathname.startsWith("/admin");
 
   useEffect(() => {
-    // Verificar si el usuario tiene una sesión activa de administrador
+    // Verificar si hay una sesión activa de administrador en Supabase
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAdminLoggedIn(!!session);
     });
 
-    // Escuchar cambios en el estado de autenticación (login/logout)
+    // Escuchar cambios de autenticación en tiempo real
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -28,10 +28,11 @@ export default function ViewToggle() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // REGLA FUNDAMENTAL:
-  // Si el usuario está en la vista de cliente (/) Y NO ha iniciado sesión como administrador,
-  // NO se muestra NINGÚN botón. Los clientes normales no deben ver ningún indicio del panel admin.
-  if (!isAdminRoute && !isAdminLoggedIn) {
+  // REGLA ABSOLUTA:
+  // El botón de cambio de vista (Vista Cliente / Vista Admin) SOLO se muestra
+  // si el usuario ha INICIADO SESIÓN como Administrador.
+  // Sin iniciar sesión, NINGUNA vista (ni web ni app) muestra la opción de cambiar.
+  if (!isAdminLoggedIn) {
     return null;
   }
 
