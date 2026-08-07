@@ -16,8 +16,11 @@ import {
   ClipboardList,
   Save,
   X,
+  LayoutTemplate,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { getHeaderConfig, saveHeaderConfig, HeaderConfig } from "@/lib/configManager";
 
 interface Product {
   id: string;
@@ -44,7 +47,7 @@ interface Order {
   created_at?: string;
 }
 
-type Tab = "productos" | "categorias" | "pedidos";
+type Tab = "productos" | "categorias" | "pedidos" | "encabezado";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -74,6 +77,42 @@ export default function AdminPage() {
   // Pedidos
   const [pedidos, setPedidos] = useState<Order[]>([]);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
+
+  // Encabezado
+  const [headerBadgeText, setHeaderBadgeText] = useState("");
+  const [headerTituloPrincipal, setHeaderTituloPrincipal] = useState("");
+  const [headerTituloDestacado, setHeaderTituloDestacado] = useState("");
+  const [headerDescripcion, setHeaderDescripcion] = useState("");
+  const [headerBotonTexto, setHeaderBotonTexto] = useState("");
+  const [savingHeader, setSavingHeader] = useState(false);
+  const [headerSuccess, setHeaderSuccess] = useState(false);
+
+  const cargarHeaderConfig = useCallback(async () => {
+    const config = await getHeaderConfig();
+    setHeaderBadgeText(config.badge_text);
+    setHeaderTituloPrincipal(config.titulo_principal);
+    setHeaderTituloDestacado(config.titulo_destacado);
+    setHeaderDescripcion(config.descripcion);
+    setHeaderBotonTexto(config.boton_texto);
+  }, []);
+
+  const handleGuardarHeader = async (e: FormEvent) => {
+    e.preventDefault();
+    setSavingHeader(true);
+    setHeaderSuccess(false);
+
+    await saveHeaderConfig({
+      badge_text: headerBadgeText.trim(),
+      titulo_principal: headerTituloPrincipal.trim(),
+      titulo_destacado: headerTituloDestacado.trim(),
+      descripcion: headerDescripcion.trim(),
+      boton_texto: headerBotonTexto.trim(),
+    });
+
+    setSavingHeader(false);
+    setHeaderSuccess(true);
+    setTimeout(() => setHeaderSuccess(false), 3000);
+  };
 
   // Verificar sesión al montar
   useEffect(() => {
@@ -134,8 +173,9 @@ export default function AdminPage() {
       cargarProductos();
       cargarCategorias();
       cargarPedidos();
+      cargarHeaderConfig();
     }
-  }, [session, cargarProductos, cargarCategorias, cargarPedidos]);
+  }, [session, cargarProductos, cargarCategorias, cargarPedidos, cargarHeaderConfig]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -343,6 +383,7 @@ export default function AdminPage() {
     { id: "productos", label: "Productos", icon: Package },
     { id: "categorias", label: "Categorías", icon: Tags },
     { id: "pedidos", label: "Pedidos", icon: ClipboardList },
+    { id: "encabezado", label: "Encabezado", icon: LayoutTemplate },
   ];
 
   return (
@@ -354,7 +395,7 @@ export default function AdminPage() {
             Panel de Administración
           </h1>
           <p className="mt-1 text-stone-600">
-            Gestiona productos, categorías y pedidos de la tienda.
+            Gestiona productos, categorías, pedidos y encabezados de la tienda.
           </p>
         </div>
         <button
@@ -796,6 +837,123 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+        </section>
+      )}
+
+      {/* ===== VISTA ENCABEZADO ===== */}
+      {activeTab === "encabezado" && (
+        <section className="mx-auto max-w-2xl">
+          <div className="mb-4 flex items-center gap-2">
+            <LayoutTemplate className="h-5 w-5 text-emerald-600" />
+            <h2 className="text-lg font-semibold text-stone-900">
+              Personalizar Encabezado de la Tienda
+            </h2>
+          </div>
+
+          <form
+            onSubmit={handleGuardarHeader}
+            className="flex flex-col gap-5 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
+          >
+            <div className="flex flex-col gap-2">
+              <label htmlFor="badgeText" className="text-sm font-medium text-stone-700">
+                Insignia Superior (Badge)
+              </label>
+              <input
+                id="badgeText"
+                type="text"
+                value={headerBadgeText}
+                onChange={(e) => setHeaderBadgeText(e.target.value)}
+                placeholder="Ej. Experiencia de Compra Inmersiva"
+                className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              />
+              <p className="text-xs text-stone-400">
+                Pequeño texto destacado en la parte superior del encabezado.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <label htmlFor="tituloPrincipal" className="text-sm font-medium text-stone-700">
+                  Título Principal
+                </label>
+                <input
+                  id="tituloPrincipal"
+                  type="text"
+                  value={headerTituloPrincipal}
+                  onChange={(e) => setHeaderTituloPrincipal(e.target.value)}
+                  placeholder="Ej. Catálogo"
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label htmlFor="tituloDestacado" className="text-sm font-medium text-stone-700">
+                  Título Destacado (Verde)
+                </label>
+                <input
+                  id="tituloDestacado"
+                  type="text"
+                  value={headerTituloDestacado}
+                  onChange={(e) => setHeaderTituloDestacado(e.target.value)}
+                  placeholder="Ej. Esencial"
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label htmlFor="headerDescripcion" className="text-sm font-medium text-stone-700">
+                Descripción del Encabezado
+              </label>
+              <textarea
+                id="headerDescripcion"
+                value={headerDescripcion}
+                onChange={(e) => setHeaderDescripcion(e.target.value)}
+                placeholder="Describe tu tienda o mensaje principal..."
+                rows={3}
+                className="resize-none rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label htmlFor="headerBotonTexto" className="text-sm font-medium text-stone-700">
+                Texto del Botón de Acción
+              </label>
+              <input
+                id="headerBotonTexto"
+                type="text"
+                value={headerBotonTexto}
+                onChange={(e) => setHeaderBotonTexto(e.target.value)}
+                placeholder="Ej. Ver Catálogo"
+                className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            {headerSuccess && (
+              <p className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                <CheckCircle2 className="h-4 w-4" />
+                ¡Encabezado guardado correctamente!
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={savingHeader}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {savingHeader ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Guardar Encabezado
+                </>
+              )}
+            </button>
+          </form>
         </section>
       )}
     </main>

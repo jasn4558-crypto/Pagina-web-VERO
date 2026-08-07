@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ShoppingCart, ChevronLeft, ChevronRight, Sparkles, Eye } from "lucide-react";
-import { toast } from "sonner";
+import { ShoppingCart, ChevronLeft, ChevronRight, Sparkles, Check } from "lucide-react";
 import { useCart } from "./CartProvider";
 
 interface ProductCardProps {
@@ -22,6 +21,7 @@ export default function ProductCard({
 }: ProductCardProps) {
   const { addToCart } = useCart();
   const [imgIndex, setImgIndex] = useState(0);
+  const [added, setAdded] = useState(false);
 
   const images = imagenes.length > 0 ? imagenes : [];
   const imagenPrincipal = images[0] ?? "";
@@ -38,9 +38,8 @@ export default function ProductCard({
 
   const handleAddToCart = () => {
     addToCart({ id, nombre, precio, imagen: imagenPrincipal });
-    toast.success("¡Producto agregado al carrito!", {
-      description: nombre,
-    });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1200);
   };
 
   return (
@@ -136,10 +135,23 @@ export default function ProductCard({
           <button
             type="button"
             onClick={handleAddToCart}
-            className="flex items-center gap-1.5 rounded-full bg-stone-900 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-emerald-600 hover:shadow-md active:scale-95 sm:px-5 sm:py-2.5 sm:text-sm"
+            className={`flex items-center gap-1.5 rounded-full px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-all active:scale-95 sm:px-5 sm:py-2.5 sm:text-sm ${
+              added
+                ? "bg-emerald-700 scale-105"
+                : "bg-stone-900 hover:bg-emerald-600 hover:shadow-md"
+            }`}
           >
-            <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span>Agregar</span>
+            {added ? (
+              <>
+                <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>¡Agregado!</span>
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>Agregar</span>
+              </>
+            )}
           </button>
         </div>
       </div>
