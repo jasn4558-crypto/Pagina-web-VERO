@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Save,
   X,
+  Store,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -357,14 +358,25 @@ export default function AdminPage() {
             Gestiona productos, categorías y pedidos de la tienda.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-        >
-          <LogOut className="h-4 w-4" />
-          Cerrar Sesión
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+          >
+            <Store className="h-4 w-4" />
+            Ver tienda
+          </a>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+          >
+            <LogOut className="h-4 w-4" />
+            Cerrar Sesión
+          </button>
+        </div>
       </header>
 
       {/* Tabs */}

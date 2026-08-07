@@ -3,6 +3,7 @@ import FloatingCart from "@/components/FloatingCart";
 import CategorySidebar from "@/components/CategorySidebar";
 import HeroBanner from "@/components/HeroBanner";
 import TrustBadges from "@/components/TrustBadges";
+import AdminBackButton from "@/components/AdminBackButton";
 import { supabase } from "@/lib/supabase";
 
 // Siempre consulta la base de datos fresca (evita caché agresiva de Server Components)
@@ -110,6 +111,7 @@ export default async function Home({
       </div>
 
       <FloatingCart />
+      <AdminBackButton />
     </main>
   );
 }
