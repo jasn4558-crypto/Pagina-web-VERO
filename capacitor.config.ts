@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Tienda Verónica',
   webDir: 'public',
   server: {
-    url: 'https://pagina-web-vero.vercel.app/',
+    url: 'https://pagina-web-vero.vercel.app/admin',
     cleartext: true
   }
 };
