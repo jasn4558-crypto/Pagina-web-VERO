@@ -147,12 +147,10 @@ export default function ProductCard({
             {added ? (
               <>
                 <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                <span>¡Agregado!</span>
               </>
             ) : (
               <>
                 <ShoppingCart className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                <span>Agregar</span>
               </>
             )}
           </button>

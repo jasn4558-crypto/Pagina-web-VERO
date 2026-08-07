@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import type { Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
@@ -41,7 +41,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-stone-50 text-stone-900">
         <CartProvider>{children}</CartProvider>
         <ViewToggle />
-        <Toaster position="bottom-right" richColors />
+        <Toaster position="top-center" richColors />
       </body>
     </html>
   );
