@@ -18,9 +18,13 @@ import {
   X,
   LayoutTemplate,
   Sparkles,
+  Download,
+  Eye,
+  ZoomIn,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getHeaderConfig, saveHeaderConfig, HeaderConfig } from "@/lib/configManager";
+import { generateOrderPDF } from "@/lib/pdfGenerator";
 
 interface Product {
   id: string;
@@ -77,6 +81,7 @@ export default function AdminPage() {
   // Pedidos
   const [pedidos, setPedidos] = useState<Order[]>([]);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
+  const [selectedOrderImages, setSelectedOrderImages] = useState<Order | null>(null);
 
   // Encabezado
   const [headerBadgeText, setHeaderBadgeText] = useState("");
@@ -761,11 +766,13 @@ export default function AdminPage() {
       {/* ===== VISTA PEDIDOS ===== */}
       {activeTab === "pedidos" && (
         <section>
-          <div className="mb-4 flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-emerald-600" />
-            <h2 className="text-lg font-semibold text-stone-900">
-              Pedidos ({pedidos.length})
-            </h2>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-emerald-600" />
+              <h2 className="text-lg font-semibold text-stone-900">
+                Pedidos ({pedidos.length})
+              </h2>
+            </div>
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-white shadow-sm">
@@ -780,7 +787,7 @@ export default function AdminPage() {
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] text-left text-sm">
+                <table className="w-full min-w-[750px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-stone-100 text-xs uppercase tracking-wide text-stone-400">
                       <th className="px-4 py-3 font-medium">Fecha</th>
@@ -788,6 +795,7 @@ export default function AdminPage() {
                       <th className="px-4 py-3 font-medium">Total</th>
                       <th className="px-4 py-3 font-medium">Items</th>
                       <th className="px-4 py-3 font-medium">Estado</th>
+                      <th className="px-4 py-3 font-medium text-right">PDF / Cotización</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-50">
@@ -805,13 +813,23 @@ export default function AdminPage() {
                           ₡{pedido.total.toLocaleString("es-CR")}
                         </td>
                         <td className="px-4 py-3">
-                          <ul className="flex flex-col gap-0.5">
-                            {(pedido.items ?? []).map((item: any, i: number) => (
-                              <li key={i} className="text-xs text-stone-500">
-                                {item.nombre} × {item.cantidad}
-                              </li>
-                            ))}
-                          </ul>
+                          <div className="flex flex-col gap-1.5">
+                            <ul className="flex flex-col gap-0.5">
+                              {(pedido.items ?? []).map((item: any, i: number) => (
+                                <li key={i} className="text-xs text-stone-600 font-medium">
+                                  {item.nombre} × {item.cantidad}
+                                </li>
+                              ))}
+                            </ul>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOrderImages(pedido)}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-800 transition-colors"
+                            >
+                              <ZoomIn className="h-3.5 w-3.5" />
+                              Ver / Ampliar Imágenes
+                            </button>
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <select
@@ -830,6 +848,16 @@ export default function AdminPage() {
                             <option value="cancelado">Cancelado</option>
                           </select>
                         </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => generateOrderPDF(pedido)}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-stone-900 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-600 transition-colors"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            Descargar PDF
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -838,6 +866,66 @@ export default function AdminPage() {
             )}
           </div>
         </section>
+      )}
+
+      {/* Modal para ampliar imágenes del pedido */}
+      {selectedOrderImages && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-4 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-stone-900">
+                  Imágenes del Pedido #{selectedOrderImages.id.slice(0, 8)}
+                </h3>
+                <p className="text-xs text-stone-500">
+                  Cliente: {selectedOrderImages.telefono} — Total: ₡{selectedOrderImages.total.toLocaleString("es-CR")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderImages(null)}
+                className="rounded-full p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              {(selectedOrderImages.items ?? []).map((item: any, idx: number) => (
+                <div key={idx} className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-stone-50 p-3">
+                  <div className="aspect-square w-full overflow-hidden rounded-xl bg-stone-200">
+                    {item.imagen ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.imagen}
+                        alt={item.nombre}
+                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-stone-400">
+                        <ImageIcon className="h-8 w-8" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-stone-900 line-clamp-1">{item.nombre}</h4>
+                    <p className="text-xs text-stone-500">Cantidad: {item.cantidad || 1}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedOrderImages(null)}
+                className="rounded-full bg-stone-900 px-5 py-2 text-xs font-bold text-white hover:bg-stone-800"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ===== VISTA ENCABEZADO ===== */}
