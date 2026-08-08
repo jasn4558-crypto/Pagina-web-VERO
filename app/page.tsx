@@ -17,6 +17,7 @@ interface Product {
   precio: number;
   descripcion: string;
   imagenes: string[];
+  categoria_id: string;
 }
 
 interface Category {
@@ -58,6 +59,7 @@ export default async function Home({
     precio: p.precio,
     descripcion: p.descripcion,
     imagenes: Array.isArray(p.imagenes) ? p.imagenes : [],
+    categoria_id: p.categoria_id,
   }));
 
   const allCategories: Category[] = [
@@ -75,7 +77,7 @@ export default async function Home({
   return (
     <main className="flex-1 w-full bg-stone-50">
       {/* 1. Hero Banner */}
-      <HeroBanner />
+      <HeroBanner categories={allCategories} products={products} />
 
       {/* 2. Carrusel de Promociones */}
       <PromoCarousel items={promos} />
