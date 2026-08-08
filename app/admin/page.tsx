@@ -13,6 +13,7 @@ import {
   ImageIcon,
   Pencil,
   Tags,
+  Tag,
   ClipboardList,
   Save,
   X,
@@ -21,11 +22,15 @@ import {
   Download,
   Eye,
   ZoomIn,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getHeaderConfig, saveHeaderConfig, HeaderConfig } from "@/lib/configManager";
 import { generateOrderPDF } from "@/lib/pdfGenerator";
 import ProductImageEditor from "@/components/ProductImageEditor";
+import { getCurrentUserSession, logoutUserSession } from "@/lib/authManager";
+import { getAllPromos, upsertPromo, deletePromo, togglePromo, PromoRecord } from "@/lib/promoManager";
 
 interface Product {
   id: string;
@@ -52,7 +57,7 @@ interface Order {
   created_at?: string;
 }
 
-type Tab = "productos" | "categorias" | "pedidos" | "encabezado";
+type Tab = "productos" | "categorias" | "pedidos" | "encabezado" | "promociones";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -99,6 +104,15 @@ export default function AdminPage() {
   const [editingNewFile, setEditingNewFile] = useState<File | null>(null);
   const [editingNewFileIndex, setEditingNewFileIndex] = useState<number | null>(null);
 
+  // Promociones
+  const [promos, setPromos] = useState<PromoRecord[]>([]);
+  const [loadingPromos, setLoadingPromos] = useState(false);
+  const [promoProductId, setPromoProductId] = useState("");
+  const [promoDescuento, setPromoDescuento] = useState("10");
+  const [savingPromo, setSavingPromo] = useState(false);
+  const [promoError, setPromoError] = useState("");
+  const [promoSuccess, setPromoSuccess] = useState("");
+
   // Encabezado
   const [headerBadgeText, setHeaderBadgeText] = useState("");
   const [headerTituloPrincipal, setHeaderTituloPrincipal] = useState("");
@@ -138,11 +152,12 @@ export default function AdminPage() {
   // Verificar sesión al montar
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const { data: { session: supaSession } } = await supabase.auth.getSession();
+      const localUser = getCurrentUserSession();
+      if (!supaSession && localUser?.rol !== "admin") {
         router.push("/admin/login");
       } else {
-        setSession(session);
+        setSession(supaSession || localUser);
       }
       setChecking(false);
     };
@@ -195,10 +210,12 @@ export default function AdminPage() {
       cargarCategorias();
       cargarPedidos();
       cargarHeaderConfig();
+      getAllPromos().then(setPromos);
     }
   }, [session, cargarProductos, cargarCategorias, cargarPedidos, cargarHeaderConfig]);
 
   const handleSignOut = async () => {
+    logoutUserSession();
     await supabase.auth.signOut();
     router.push("/admin/login");
     router.refresh();
@@ -404,6 +421,7 @@ export default function AdminPage() {
     { id: "productos", label: "Productos", icon: Package },
     { id: "categorias", label: "Categorías", icon: Tags },
     { id: "pedidos", label: "Pedidos", icon: ClipboardList },
+    { id: "promociones", label: "Promociones", icon: Tag },
     { id: "encabezado", label: "Encabezado", icon: LayoutTemplate },
   ];
 
@@ -994,6 +1012,201 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ===== VISTA PROMOCIONES ===== */}
+      {activeTab === "promociones" && (
+        <section className="mx-auto max-w-3xl space-y-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Tag className="h-5 w-5 text-emerald-600" />
+            <h2 className="text-lg font-semibold text-stone-900">Promociones del Carrusel</h2>
+          </div>
+
+          {/* Formulario para agregar promo */}
+          <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-sm font-bold text-stone-800">Agregar producto al carrusel de ofertas</h3>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-stone-700">Selecciona un Producto</label>
+                <select
+                  value={promoProductId}
+                  onChange={(e) => setPromoProductId(e.target.value)}
+                  className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+                >
+                  <option value="">-- Elige un producto --</option>
+                  {productos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre} · ₡{p.precio.toLocaleString("es-CR")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-stone-700">
+                  Descuento (%) — El precio nuevo se calcula automáticamente
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="1"
+                    max="90"
+                    value={promoDescuento}
+                    onChange={(e) => setPromoDescuento(e.target.value)}
+                    className="flex-1 accent-emerald-600"
+                  />
+                  <span className="w-14 text-center rounded-xl border border-emerald-200 bg-emerald-50 py-1 text-sm font-extrabold text-emerald-700">
+                    -{promoDescuento}%
+                  </span>
+                </div>
+                {promoProductId && (() => {
+                  const prod = productos.find((p) => p.id === promoProductId);
+                  if (!prod) return null;
+                  const nuevo = Math.round(prod.precio * (1 - Number(promoDescuento) / 100));
+                  return (
+                    <p className="text-xs text-stone-500">
+                      Precio original: <span className="line-through">₡{prod.precio.toLocaleString("es-CR")}</span>
+                      {" → "}
+                      <span className="font-bold text-emerald-700">₡{nuevo.toLocaleString("es-CR")}</span>
+                    </p>
+                  );
+                })()}
+              </div>
+
+              {promoError && (
+                <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600 border border-red-200">{promoError}</p>
+              )}
+              {promoSuccess && (
+                <p className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                  <CheckCircle2 className="h-4 w-4" /> {promoSuccess}
+                </p>
+              )}
+
+              <button
+                type="button"
+                disabled={savingPromo || !promoProductId}
+                onClick={async () => {
+                  setPromoError("");
+                  setPromoSuccess("");
+                  const prod = productos.find((p) => p.id === promoProductId);
+                  if (!prod) return;
+                  setSavingPromo(true);
+                  try {
+                    await upsertPromo({
+                      producto_id: prod.id,
+                      nombre: prod.nombre,
+                      imagen: prod.imagenes?.[0] ?? "",
+                      precio_original: prod.precio,
+                      descuento: Number(promoDescuento),
+                      activo: true,
+                      orden: promos.length + 1,
+                    });
+                    setPromoSuccess("¡Producto agregado al carrusel!");
+                    setPromoProductId("");
+                    setPromoDescuento("10");
+                    const updated = await getAllPromos();
+                    setPromos(updated);
+                  } catch (err: any) {
+                    setPromoError(err?.message || "Error al guardar.");
+                  } finally {
+                    setSavingPromo(false);
+                  }
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 py-3 text-sm font-bold text-white shadow hover:bg-emerald-500 active:scale-95 disabled:opacity-50"
+              >
+                {savingPromo ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+                Agregar al Carrusel de Ofertas
+              </button>
+            </div>
+          </div>
+
+          {/* Lista de promos */}
+          <div className="rounded-2xl border border-stone-200 bg-white shadow-sm">
+            <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
+              <span className="text-sm font-bold text-stone-800">Productos en el carrusel ({promos.length})</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  setLoadingPromos(true);
+                  const data = await getAllPromos();
+                  setPromos(data);
+                  setLoadingPromos(false);
+                }}
+                className="text-xs text-emerald-600 hover:underline"
+              >
+                Actualizar lista
+              </button>
+            </div>
+
+            {loadingPromos ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-stone-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-xs">Cargando...</span>
+              </div>
+            ) : promos.length === 0 ? (
+              <p className="py-8 text-center text-xs text-stone-500">No hay productos en el carrusel todavía.</p>
+            ) : (
+              <ul className="divide-y divide-stone-100">
+                {promos.map((promo) => {
+                  const nuevo = Math.round(promo.precio_original * (1 - promo.descuento / 100));
+                  return (
+                    <li key={promo.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-stone-100">
+                        {promo.imagen ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={promo.imagen} alt={promo.nombre} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <ImageIcon className="h-4 w-4 text-stone-300" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm font-semibold text-stone-900">{promo.nombre}</span>
+                        <span className="text-xs">
+                          <span className="text-stone-400 line-through">₡{promo.precio_original.toLocaleString("es-CR")}</span>
+                          {" → "}
+                          <span className="font-bold text-emerald-700">₡{nuevo.toLocaleString("es-CR")}</span>
+                          <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-extrabold text-red-600">
+                            -{promo.descuento}%
+                          </span>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        title={promo.activo ? "Desactivar" : "Activar"}
+                        onClick={async () => {
+                          await togglePromo(promo.id, !promo.activo);
+                          setPromos((prev) => prev.map((p) => (p.id === promo.id ? { ...p, activo: !p.activo } : p)));
+                        }}
+                        className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold transition ${
+                          promo.activo
+                            ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            : "bg-stone-100 text-stone-500 hover:bg-stone-200"
+                        }`}
+                      >
+                        {promo.activo ? <ToggleRight className="h-3.5 w-3.5" /> : <ToggleLeft className="h-3.5 w-3.5" />}
+                        {promo.activo ? "Activa" : "Inactiva"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm("¿Eliminar esta promoción del carrusel?")) return;
+                          await deletePromo(promo.id);
+                          setPromos((prev) => prev.filter((p) => p.id !== promo.id));
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-rose-500 hover:bg-rose-50 transition"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </section>
       )}
 
       {/* ===== VISTA ENCABEZADO ===== */}

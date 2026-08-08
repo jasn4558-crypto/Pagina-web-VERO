@@ -60,7 +60,10 @@ export async function registerUser(data: {
   }
 
   // Verificar si es el email del administrador principal
-  const isAdmin = emailClean === "admin@tiendaveronica.com" || emailClean === "admin@vero.com";
+  const isAdmin =
+    emailClean === "jimenezquirosveronica@gmail.com" ||
+    emailClean === "admin@tiendaveronica.com" ||
+    emailClean === "admin@vero.com";
   const rol = isAdmin ? "admin" : "cliente";
 
   // Generar código de verificación aleatorio de 6 dígitos

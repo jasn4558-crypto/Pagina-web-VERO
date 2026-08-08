@@ -2,10 +2,11 @@ import ProductCard from "@/components/ProductCard";
 import FloatingCart from "@/components/FloatingCart";
 import CategorySidebar from "@/components/CategorySidebar";
 import HeroBanner from "@/components/HeroBanner";
-import TrustBadges from "@/components/TrustBadges";
+import PromoCarousel from "@/components/PromoCarousel";
 import ViewToggle from "@/components/ViewToggle";
 import UserMenu from "@/components/UserMenu";
 import { supabase } from "@/lib/supabase";
+import { getPromos } from "@/lib/promoManager";
 
 // Siempre consulta la base de datos fresca (evita caché agresiva de Server Components)
 export const dynamic = "force-dynamic";
@@ -49,6 +50,8 @@ export default async function Home({
     .eq("activo", true)
     .order("nombre");
 
+  const promos = await getPromos();
+
   const products: Product[] = (productos ?? []).map((p: any) => ({
     id: p.id,
     nombre: p.nombre,
@@ -74,8 +77,8 @@ export default async function Home({
       {/* 1. Hero Banner */}
       <HeroBanner />
 
-      {/* 2. Trust Badges */}
-      <TrustBadges />
+      {/* 2. Carrusel de Promociones */}
+      <PromoCarousel items={promos} />
 
       {/* 3. Contenido principal con Categorías Horizontales Arriba */}
       <div id="productos" className="relative w-full">

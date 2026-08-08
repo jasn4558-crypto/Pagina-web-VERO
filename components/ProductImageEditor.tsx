@@ -515,11 +515,110 @@ export default function ProductImageEditor({
           </button>
         </div>
 
-        {/* Cuerpo: panel izquierdo de herramientas + canvas */}
-        <div className="flex flex-1 overflow-hidden">
+        {/* Cuerpo: canvas arriba en móvil, panel de herramientas abajo */}
+        <div className="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden">
 
-          {/* ── Panel de herramientas ── */}
-          <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-r border-stone-200 bg-stone-50">
+          {/* ── Canvas + controles flotantes (Primero en móvil) ── */}
+          <div className="order-1 md:order-2 relative flex flex-1 flex-col items-center justify-center bg-stone-100 p-3 sm:p-6 shrink-0 md:shrink">
+
+            {/* Canvas */}
+            <div className="relative w-full max-w-sm sm:max-w-md md:max-w-2xl overflow-hidden rounded-2xl shadow-xl" style={{ aspectRatio: "1 / 1" }}>
+              <canvas
+                ref={canvasRef}
+                width={CANVAS_SIZE}
+                height={CANVAS_SIZE}
+                className="w-full h-full"
+                style={{ cursor: isBrushMode ? "crosshair" : "default", touchAction: "none" }}
+              />
+            </div>
+
+            {/* Barra de edición de texto activo */}
+            {activeOverlay?.type === "text" && (
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white px-3 py-2 shadow-lg">
+                <input
+                  type="text"
+                  value={editTextVal}
+                  onChange={(e) => updateActiveText("text", e.target.value)}
+                  className="w-32 rounded-xl border border-stone-200 px-2 py-1 text-xs outline-none focus:border-emerald-500"
+                  placeholder="Editar texto"
+                />
+                <select
+                  value={editTextFont}
+                  onChange={(e) => updateActiveText("font", e.target.value)}
+                  className="rounded-xl border border-stone-200 px-2 py-1 text-xs outline-none"
+                >
+                  <option value="Arial">Arial</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Impact">Impact</option>
+                  <option value="Courier New">Courier New</option>
+                  <option value="Verdana">Verdana</option>
+                </select>
+                <input
+                  type="color"
+                  value={editTextColor}
+                  onChange={(e) => updateActiveText("color", e.target.value)}
+                  className="h-7 w-7 cursor-pointer rounded-lg border border-stone-200 p-0"
+                />
+                <button
+                  type="button"
+                  onClick={deleteActiveOverlay}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
+                  title="Eliminar elemento"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Barra de imagen activa */}
+            {activeOverlay?.type === "image" && (
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-stone-200 bg-white px-3 py-2 shadow-lg w-full max-w-sm">
+                <span className="text-[11px] text-stone-500">Mueve o redimensiona en esquina</span>
+                <button
+                  type="button"
+                  onClick={deleteActiveOverlay}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
+                  title="Eliminar imagen"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Botón guardar */}
+            <div className="mt-3 mb-2 flex flex-col items-center gap-1.5 w-full max-w-xs">
+              {saveError && (
+                <p className="text-xs text-red-600 text-center rounded-xl bg-red-50 px-3 py-1.5 w-full">{saveError}</p>
+              )}
+              {savedOk && (
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 rounded-xl bg-emerald-50 px-3 py-1.5 w-full justify-center">
+                  <CheckCircle2 className="h-4 w-4" />
+                  ¡Imagen guardada!
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 transition-all hover:bg-emerald-500 active:scale-95 disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Guardar Imagen en la Tienda
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* ── Panel de herramientas (Segundo en móvil) ── */}
+          <aside className="order-2 md:order-1 flex w-full md:w-80 shrink-0 flex-col border-t md:border-t-0 md:border-r border-stone-200 bg-stone-50 overflow-y-auto">
             <div className="flex flex-1 flex-col gap-3 p-4">
 
               {/* 1. Imagen base */}
@@ -693,108 +792,6 @@ export default function ProductImageEditor({
               </button>
             </div>
           </aside>
-
-          {/* ── Canvas + controles flotantes ── */}
-          <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden bg-stone-100 p-6">
-
-            {/* Canvas */}
-            <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl shadow-2xl" style={{ aspectRatio: "1 / 1" }}>
-              <canvas
-                ref={canvasRef}
-                width={CANVAS_SIZE}
-                height={CANVAS_SIZE}
-                className="w-full h-full"
-                style={{ cursor: isBrushMode ? "crosshair" : "default", touchAction: "none" }}
-              />
-            </div>
-
-            {/* Barra de edición de texto activo */}
-            {activeOverlay?.type === "text" && (
-              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-lg">
-                <input
-                  type="text"
-                  value={editTextVal}
-                  onChange={(e) => updateActiveText("text", e.target.value)}
-                  className="w-40 rounded-xl border border-stone-200 px-3 py-1.5 text-xs outline-none focus:border-emerald-500"
-                  placeholder="Editar texto"
-                />
-                <select
-                  value={editTextFont}
-                  onChange={(e) => updateActiveText("font", e.target.value)}
-                  className="rounded-xl border border-stone-200 px-2 py-1.5 text-xs outline-none"
-                >
-                  <option value="Arial">Arial</option>
-                  <option value="Georgia">Georgia</option>
-                  <option value="Impact">Impact</option>
-                  <option value="Courier New">Courier New</option>
-                  <option value="Verdana">Verdana</option>
-                </select>
-                <input
-                  type="color"
-                  value={editTextColor}
-                  onChange={(e) => updateActiveText("color", e.target.value)}
-                  className="h-8 w-8 cursor-pointer rounded-lg border border-stone-200 p-0"
-                />
-                <button
-                  type="button"
-                  onClick={deleteActiveOverlay}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors hover:bg-red-100"
-                  title="Eliminar elemento"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Barra de imagen activa */}
-            {activeOverlay?.type === "image" && (
-              <div className="mt-4 flex items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-lg">
-                <span className="text-xs text-stone-500">Imagen seleccionada — Arrastra para mover, esquina verde para redimensionar</span>
-                <button
-                  type="button"
-                  onClick={deleteActiveOverlay}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors hover:bg-red-100"
-                  title="Eliminar imagen"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Botón guardar */}
-            <div className="mt-5 flex flex-col items-center gap-2 w-full max-w-xs">
-              {saveError && (
-                <p className="text-xs text-red-600 text-center rounded-xl bg-red-50 px-3 py-2 w-full">{saveError}</p>
-              )}
-              {savedOk && (
-                <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 rounded-xl bg-emerald-50 px-3 py-2 w-full justify-center">
-                  <CheckCircle2 className="h-4 w-4" />
-                  ¡Imagen guardada exitosamente!
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 transition-all hover:bg-emerald-500 hover:shadow-xl active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Guardando en la Tienda...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4" />
-                    Guardar Imagen en la Tienda
-                  </>
-                )}
-              </button>
-              <p className="text-center text-xs text-stone-400">
-                La imagen editada se añade al inicio del carrusel del producto.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
 
