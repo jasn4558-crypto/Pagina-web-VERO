@@ -27,7 +27,7 @@ export default function PromoCarousel({ items }: PromoCarouselProps) {
   const dragOffsetStartRef = useRef(0);
   const { addToCart } = useCart();
 
-  const shouldScroll = items.length >= 5;
+  const shouldScroll = items.length > 6;
   const CARD_W = 216; // px per card including gap
   const SPEED = 0.6;  // px per frame
 
@@ -100,9 +100,9 @@ export default function PromoCarousel({ items }: PromoCarouselProps) {
         <Tag className="h-4 w-4 text-emerald-600" />
       </div>
 
-      {/* Si hay 4 o menos productos: Vista fija centrada (máximo 4 productos) */}
+      {/* Si hay 6 o menos productos: Vista fija centrada sin deslizar */}
       {!shouldScroll ? (
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-3 px-4 sm:gap-4">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-3 px-4 sm:gap-4">
           {items.map((item) => {
             const precioNuevo = Math.round(
               item.precio_original * (1 - item.descuento / 100)
