@@ -10,7 +10,9 @@ export interface AddressData {
 
 /**
  * Crea un pedido en la tabla `pedidos` de Supabase.
- * Guarda el teléfono, dirección, el total y los items como JSON.
+ * La dirección se guarda:
+ *   1. En la columna `direccion` (JSONB) si existe.
+ *   2. SIEMPRE dentro del objeto `_direccion` en el array `items` como metadata.
  * Retorna el número de pedido generado consecutivo (ej: "0000421").
  */
 export async function createOrder(
@@ -22,14 +24,12 @@ export async function createOrder(
     throw new Error("El carrito está vacío.");
   }
 
-  // Obtenemos la cantidad de pedidos existentes para calcular el consecutivo desde 421
   const { count } = await supabase
     .from("pedidos")
     .select("*", { count: "exact", head: true });
 
   const numPedido = 421 + (count ?? 0);
   const numeroPedidoStr = String(numPedido).padStart(7, "0");
-
   const total = cart.reduce((acc, i) => acc + i.precio * i.cantidad, 0);
 
   const addressPayload = {
@@ -39,42 +39,42 @@ export async function createOrder(
     direccion_exacta: address?.direccionExacta || "",
   };
 
-  const { error } = await supabase.from("pedidos").insert({
-    telefono: userPhone,
-    total,
-    estado: "pendiente",
-    direccion: addressPayload,
-    provincia: addressPayload.provincia,
-    canton: addressPayload.canton,
-    distrito: addressPayload.distrito,
-    direccion_exacta: addressPayload.direccion_exacta,
-    items: cart.map((i) => ({
+  // Los items del carrito, más un item especial "_direccion" con los datos de envío
+  const itemsPayload = [
+    ...cart.map((i) => ({
       id: i.id,
       nombre: i.nombre,
       precio: i.precio,
       cantidad: i.cantidad,
       imagen: i.imagen,
       numero_pedido: numeroPedidoStr,
-      ...addressPayload,
     })),
+    // Guardamos la dirección como un "item" especial de metadata
+    {
+      _tipo: "direccion",
+      numero_pedido: numeroPedidoStr,
+      ...addressPayload,
+    },
+  ];
+
+  // Intento 1: con columna `direccion` JSONB (si ya fue creada en Supabase)
+  const { error } = await supabase.from("pedidos").insert({
+    telefono: userPhone,
+    total,
+    estado: "pendiente",
+    direccion: addressPayload,
+    items: itemsPayload,
   });
 
   if (error) {
-    console.warn("Advertencia al insertar pedido con columnas directas:", error.message);
-    // Fallback si la tabla no tiene las columnas individuales activas
+    // La columna `direccion` aún no existe — fallback sin ella,
+    // pero la dirección igualmente queda grabada dentro de items
+    console.warn("Columna `direccion` no disponible, guardando en items:", error.message);
     const { error: fallbackError } = await supabase.from("pedidos").insert({
       telefono: userPhone,
       total,
       estado: "pendiente",
-      items: cart.map((i) => ({
-        id: i.id,
-        nombre: i.nombre,
-        precio: i.precio,
-        cantidad: i.cantidad,
-        imagen: i.imagen,
-        numero_pedido: numeroPedidoStr,
-        ...addressPayload,
-      })),
+      items: itemsPayload,
     });
     if (fallbackError) {
       throw new Error(`Error al registrar el pedido: ${fallbackError.message}`);
@@ -82,4 +82,33 @@ export async function createOrder(
   }
 
   return numeroPedidoStr;
+}
+
+/**
+ * Extrae la dirección de un pedido (desde columna `direccion` o desde items._tipo==="direccion")
+ */
+export function extractAddressFromOrder(order: {
+  direccion?: Record<string, string> | null;
+  items?: any[];
+}): { provincia: string; canton: string; distrito: string; direccion_exacta: string } {
+  // Primero intentar columna direccion
+  if (order.direccion && order.direccion.provincia) {
+    return {
+      provincia: order.direccion.provincia || "",
+      canton: order.direccion.canton || "",
+      distrito: order.direccion.distrito || "",
+      direccion_exacta: order.direccion.direccion_exacta || "",
+    };
+  }
+  // Fallback: buscar en items
+  const dirItem = (order.items || []).find((i: any) => i._tipo === "direccion");
+  if (dirItem) {
+    return {
+      provincia: dirItem.provincia || "",
+      canton: dirItem.canton || "",
+      distrito: dirItem.distrito || "",
+      direccion_exacta: dirItem.direccion_exacta || "",
+    };
+  }
+  return { provincia: "", canton: "", distrito: "", direccion_exacta: "" };
 }

@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { extractAddressFromOrder } from "./orderManager";
 
 export interface OrderItem {
   nombre: string;
@@ -16,16 +17,7 @@ export interface OrderData {
   items: OrderItem[];
   created_at?: string;
   numero_pedido?: string;
-  provincia?: string;
-  canton?: string;
-  distrito?: string;
-  direccion_exacta?: string;
-  direccion?: {
-    provincia?: string;
-    canton?: string;
-    distrito?: string;
-    direccion_exacta?: string;
-  };
+  direccion?: Record<string, string> | null;
 }
 
 async function loadImgAsDataUrl(
@@ -84,11 +76,12 @@ export async function generateOrderPDF(order: OrderData) {
     ? new Date(order.created_at).toLocaleString("es-CR")
     : new Date().toLocaleString("es-CR");
 
-  // Extraer información de dirección
-  const provincia = order.provincia || order.direccion?.provincia || "";
-  const canton = order.canton || order.direccion?.canton || "";
-  const distrito = order.distrito || order.direccion?.distrito || "";
-  const direccionExacta = order.direccion_exacta || order.direccion?.direccion_exacta || "";
+  // Extraer información de dirección desde columna o items metadata
+  const addr = extractAddressFromOrder(order);
+  const provincia = addr.provincia;
+  const canton = addr.canton;
+  const distrito = addr.distrito;
+  const direccionExacta = addr.direccion_exacta;
 
   // 1. Encabezado principal (Banner Verde Esmeralda)
   doc.setFillColor(16, 185, 129); // Emerald-600
