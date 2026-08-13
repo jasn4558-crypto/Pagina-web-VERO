@@ -82,8 +82,20 @@ function drawImageFit(
 }
 
 /**
- * Dibuja texto limitado a un número máximo de líneas.
- * Retorna la Y donde terminó el texto.
+ * Limpia el texto para jsPDF/Helvetica:
+ * elimina emojis y cualquier caracter fuera del rango Latin-1 (U+0000–U+00FF)
+ * que causaria caracteres basura en el PDF.
+ */
+function pdfSafe(text: string): string {
+  return (text || "")
+    .replace(/[^\u0000-\u00FF]/g, "")  // fuera de Latin-1 (incluye emojis)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Dibuja texto (ya sanitizado) limitado a maxLines.
+ * Retorna la Y donde termino el ultimo renglon.
  */
 function drawText(
   doc: jsPDF,
@@ -94,11 +106,14 @@ function drawText(
   lineHeight: number,
   maxLines: number
 ): number {
-  const raw = doc.splitTextToSize(text.trim(), maxWidth) as string[];
+  const safe = pdfSafe(text);
+  if (!safe) return y;
+  const raw = doc.splitTextToSize(safe, maxWidth) as string[];
   const lines = raw.slice(0, maxLines);
+  // Solo agrega '...' si realmente habia mas contenido
   if (raw.length > maxLines && lines.length > 0) {
     const last = lines[lines.length - 1];
-    lines[lines.length - 1] = last.length > 3 ? last.slice(0, -3).trimEnd() + "..." : last;
+    lines[lines.length - 1] = last.length > 3 ? last.slice(0, -3).trimEnd() + "..." : last + "...";
   }
   lines.forEach((line, i) => doc.text(line, x, y + i * lineHeight));
   return y + lines.length * lineHeight;
@@ -116,10 +131,10 @@ export async function generateCatalogPDF(
 ) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-  // Nombre de tienda desde configuracion
+  // Nombre de tienda desde configuracion (sanitizado para PDF)
   const headerConfig = await getHeaderConfig();
-  const storeName = `${headerConfig.titulo_principal} ${headerConfig.titulo_destacado}`.trim().toUpperCase() || "TIENDA";
-  const storeTagline = headerConfig.descripcion || "";
+  const storeName   = pdfSafe(`${headerConfig.titulo_principal} ${headerConfig.titulo_destacado}`.trim().toUpperCase()) || "TIENDA";
+  const storeTagline = pdfSafe(headerConfig.descripcion || "");
 
   // Paleta de colores
   const C_EMERALD:  [number,number,number] = [16, 185, 129];
@@ -327,7 +342,8 @@ export async function generateCatalogPDF(
   const NAME_LINES     = 2;
   const REL_DESC_Y     = 79;      // descripción empieza aquí
   const DESC_LH        = 3.8;     // interlineado descripción
-  const DESC_LINES     = 3;
+  // Espacio disponible: REL_PRICE_Y - REL_DESC_Y = 30mm → máx 7 líneas a 3.8mm
+  const DESC_LINES     = Math.floor((109 - 79) / 3.8); // = 7
   const REL_PRICE_Y    = 109;     // barra de precio
   const PRICE_H        = 9;
 
@@ -451,10 +467,10 @@ export async function generateCatalogPDF(
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8);
         doc.setTextColor(...C_DARK);
-        drawText(doc, prod.nombre, cardX + 4, cardY + REL_NAME_Y, CARD_W - 8, NAME_LH, NAME_LINES);
+        drawText(doc, pdfSafe(prod.nombre), cardX + 4, cardY + REL_NAME_Y, CARD_W - 8, NAME_LH, NAME_LINES);
 
-        // ── Descripcion (3 lineas max, si existe) ──
-        const desc = (prod.descripcion || "").trim();
+        // ── Descripcion (hasta 7 lineas, sin truncar si cabe) ──
+        const desc = pdfSafe(prod.descripcion || "");
         if (desc) {
           doc.setFont("helvetica", "normal");
           doc.setFontSize(6.5);
