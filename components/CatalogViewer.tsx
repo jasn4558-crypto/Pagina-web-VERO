@@ -283,9 +283,20 @@ export default function CatalogViewer({
                           <p className="line-clamp-2 w-full text-center text-xs font-semibold text-stone-800 group-hover:text-emerald-700 transition-colors">
                             {prod.nombre}
                           </p>
-                          <p className="text-sm font-bold text-emerald-600">
-                            ₡{prod.precio.toLocaleString("es-CR")}
-                          </p>
+                          {prod.precioOriginal ? (
+                            <div className="flex flex-col items-center leading-tight">
+                              <span className="text-[10px] text-stone-400 line-through">
+                                ₡{prod.precioOriginal.toLocaleString("es-CR")}
+                              </span>
+                              <span className="text-sm font-bold text-rose-600">
+                                ₡{prod.precio.toLocaleString("es-CR")}
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-sm font-bold text-emerald-600">
+                              ₡{prod.precio.toLocaleString("es-CR")}
+                            </p>
+                          )}
                         </div>
                       );
                     })}

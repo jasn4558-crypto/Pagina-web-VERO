@@ -5,6 +5,7 @@ export interface CatalogProduct {
   id: string;
   nombre: string;
   precio: number;
+  precioOriginal?: number;
   descripcion?: string;
   imagenes: string[];
   categoria_id: string;

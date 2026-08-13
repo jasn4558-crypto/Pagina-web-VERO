@@ -8,6 +8,7 @@ export interface ProductDetail {
   id: string;
   nombre: string;
   precio: number;
+  precioOriginal?: number;
   descripcion: string;
   imagenes: string[];
   categoria_id?: string | null;
@@ -179,9 +180,20 @@ export default function ProductDetailModal({ product, onClose }: ProductDetailMo
               <h2 className="text-xl sm:text-2xl font-black text-stone-900 leading-tight">
                 {product.nombre}
               </h2>
-              <p className="mt-2 text-2xl font-black text-emerald-600">
-                ₡{product.precio.toLocaleString("es-CR")}
-              </p>
+              {product.precioOriginal ? (
+                <div className="mt-2 flex flex-col">
+                  <span className="text-sm font-semibold text-stone-400 line-through">
+                    ₡{product.precioOriginal.toLocaleString("es-CR")}
+                  </span>
+                  <p className="text-2xl font-black text-rose-600">
+                    ₡{product.precio.toLocaleString("es-CR")}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-2 text-2xl font-black text-emerald-600">
+                  ₡{product.precio.toLocaleString("es-CR")}
+                </p>
+              )}
             </div>
 
             {/* Descripción */}

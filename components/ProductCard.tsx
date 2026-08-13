@@ -9,6 +9,7 @@ interface ProductCardProps {
   id: string;
   nombre: string;
   precio: number;
+  precioOriginal?: number;
   descripcion: string;
   imagenes: string[];
   categoria_id?: string | null;
@@ -18,16 +19,11 @@ interface ProductCardProps {
 }
 
 export default function ProductCard(props: ProductCardProps) {
-  const { id, nombre, precio, descripcion, imagenes } = props;
+  const { id, nombre, precio, precioOriginal, descripcion, imagenes } = props;
   const { addToCart } = useCart();
   const [imgIndex, setImgIndex] = useState(0);
   const [added, setAdded] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // Strip HTML from description for the small card preview
-  const plainTextDescription = typeof descripcion === "string" 
-    ? descripcion.replace(/<[^>]*>?/gm, ' ') 
-    : descripcion;
 
   const images = imagenes.length > 0 ? imagenes : [];
   const imagenPrincipal = images[0] ?? "";
@@ -59,11 +55,18 @@ export default function ProductCard(props: ProductCardProps) {
       >
         {/* Contenedor de Imagen */}
         <div className="relative aspect-[4/5] w-full overflow-hidden rounded-lg bg-stone-100 ring-1 ring-stone-200/50">
-          {/* Badge Novedad */}
-          <span className="absolute left-2 top-2 z-10 flex items-center gap-0.5 rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
-            <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-            Novedad
-          </span>
+          {/* Badge Novedad u Oferta */}
+          {precioOriginal ? (
+            <span className="absolute left-2 top-2 z-10 flex items-center gap-0.5 rounded-full bg-red-500 px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
+              <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+              Oferta
+            </span>
+          ) : (
+            <span className="absolute left-2 top-2 z-10 flex items-center gap-0.5 rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
+              <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+              Novedad
+            </span>
+          )}
 
           {/* Botón Ver detalle al hacer hover */}
           <button
@@ -139,20 +142,34 @@ export default function ProductCard(props: ProductCardProps) {
             <h3 className="text-xs font-bold text-stone-900 transition-colors group-hover:text-emerald-700 sm:text-sm lg:text-base line-clamp-1">
               {nombre}
             </h3>
-            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-stone-500 sm:text-xs sm:leading-relaxed">
-              {plainTextDescription}
-            </p>
+            <div 
+              className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-stone-500 sm:text-xs sm:leading-relaxed [&>p]:inline [&>ul]:inline [&>ol]:inline [&>li]:inline"
+              dangerouslySetInnerHTML={{ __html: descripcion }}
+            />
           </div>
 
           {/* Sección de Precio y Botón */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-1.5 pt-2 border-t border-stone-100">
-            <div className="min-w-0">
-              <span className="text-[9px] uppercase font-bold tracking-wider text-stone-400 block sm:text-[10px]">
-                Precio
-              </span>
-              <span className="text-xs font-black text-stone-900 sm:text-base whitespace-nowrap">
-                ₡{precio.toLocaleString("es-CR")}
-              </span>
+            <div className="min-w-0 flex flex-col justify-center">
+              {precioOriginal ? (
+                <>
+                  <span className="text-[10px] text-stone-400 line-through leading-none">
+                    ₡{precioOriginal.toLocaleString("es-CR")}
+                  </span>
+                  <span className="text-xs font-black text-rose-600 sm:text-base whitespace-nowrap leading-tight">
+                    ₡{precio.toLocaleString("es-CR")}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[9px] uppercase font-bold tracking-wider text-stone-400 block sm:text-[10px] leading-none mb-0.5">
+                    Precio
+                  </span>
+                  <span className="text-xs font-black text-stone-900 sm:text-base whitespace-nowrap leading-tight">
+                    ₡{precio.toLocaleString("es-CR")}
+                  </span>
+                </>
+              )}
             </div>
 
             <button

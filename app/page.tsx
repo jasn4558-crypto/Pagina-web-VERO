@@ -14,6 +14,7 @@ interface Product {
   id: string;
   nombre: string;
   precio: number;
+  precioOriginal?: number;
   descripcion: string;
   imagenes: string[];
   categoria_id: string;
@@ -88,17 +89,29 @@ export default async function Home({
   const subcatMap = new Map<string, string>();
   allSubcategories.forEach((s) => subcatMap.set(s.id, s.nombre));
 
-  const products: Product[] = (productos ?? []).map((p: any) => ({
-    id: p.id,
-    nombre: p.nombre,
-    precio: p.precio,
-    descripcion: p.descripcion || "",
-    imagenes: Array.isArray(p.imagenes) ? p.imagenes : [],
-    categoria_id: p.categoria_id,
-    subcategoria_id: p.subcategoria_id,
-    categoriaNombre: catMap.get(p.categoria_id),
-    subcategoriaNombre: p.subcategoria_id ? subcatMap.get(p.subcategoria_id) : undefined,
-  }));
+  const products: Product[] = (productos ?? []).map((p: any) => {
+    const activePromo = promos.find(promo => promo.producto_id === p.id);
+    let finalPrice = p.precio;
+    let originalPrice = undefined;
+
+    if (activePromo) {
+      originalPrice = p.precio;
+      finalPrice = Math.round(p.precio * (1 - activePromo.descuento / 100));
+    }
+
+    return {
+      id: p.id,
+      nombre: p.nombre,
+      precio: finalPrice,
+      precioOriginal: originalPrice,
+      descripcion: p.descripcion || "",
+      imagenes: Array.isArray(p.imagenes) ? p.imagenes : [],
+      categoria_id: p.categoria_id,
+      subcategoria_id: p.subcategoria_id,
+      categoriaNombre: catMap.get(p.categoria_id),
+      subcategoriaNombre: p.subcategoria_id ? subcatMap.get(p.subcategoria_id) : undefined,
+    };
+  });
 
   let currentCategoryName = "Todos los productos";
   if (categoriaId && categoriaId !== "all") {
