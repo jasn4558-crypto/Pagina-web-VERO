@@ -291,7 +291,7 @@ export default function CatalogViewer({
                           {/* Descripción con formato HTML */}
                           {(prod as any).descripcion && (
                             <div
-                              className="w-full text-left text-[10px] leading-snug text-stone-500 line-clamp-3 [&>ul]:list-disc [&>ul]:ml-3 [&>ol]:list-decimal [&>ol]:ml-3 [&>li]:block [&>p]:block [&>b]:font-bold [&>strong]:font-bold [&>em]:italic [&>br]:block"
+                              className="w-full text-left text-[10px] leading-snug text-stone-500 overflow-hidden max-h-[48px] [&_ul]:list-disc [&_ul]:ml-3 [&_ul]:my-0.5 [&_ol]:list-decimal [&_ol]:ml-3 [&_li]:leading-snug [&_li]:my-0 [&_p]:my-0 [&_b]:font-bold [&_strong]:font-bold [&_em]:italic"
                               dangerouslySetInnerHTML={{ __html: (prod as any).descripcion }}
                             />
                           )}

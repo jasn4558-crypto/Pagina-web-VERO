@@ -120,15 +120,19 @@ function drawText(
   lineHeight: number,
   maxLines: number
 ): number {
-  const safe = pdfSafe(text);
-  if (!safe) return y;
-  const raw = doc.splitTextToSize(safe, maxWidth) as string[];
-  const lines = raw.slice(0, maxLines);
-  // Solo agrega '...' si realmente habia mas contenido
-  if (raw.length > maxLines && lines.length > 0) {
-    const last = lines[lines.length - 1];
-    lines[lines.length - 1] = last.length > 3 ? last.slice(0, -3).trimEnd() + "..." : last + "...";
+  if (!text) return y;
+  
+  // Split by actual newlines first (from HTML conversion)
+  const paragraphs = text.split("\n").filter((l) => l.trim() !== "");
+  
+  const allLines: string[] = [];
+  for (const para of paragraphs) {
+    const wrapped = doc.splitTextToSize(para.trim(), maxWidth) as string[];
+    allLines.push(...wrapped);
+    if (allLines.length >= maxLines) break;
   }
+  
+  const lines = allLines.slice(0, maxLines);
   lines.forEach((line, i) => doc.text(line, x, y + i * lineHeight));
   return y + lines.length * lineHeight;
 }
@@ -483,7 +487,7 @@ export async function generateCatalogPDF(
         doc.setTextColor(...C_DARK);
         drawText(doc, pdfSafe(prod.nombre), cardX + 4, cardY + REL_NAME_Y, CARD_W - 8, NAME_LH, NAME_LINES);
 
-        // ── Descripcion (hasta 7 lineas, sin truncar si cabe) ──
+        // ── Descripcion (hasta 7 lineas, cada viñeta en su propia linea) ──
         const desc = pdfSafe(prod.descripcion || "");
         if (desc) {
           doc.setFont("helvetica", "normal");
