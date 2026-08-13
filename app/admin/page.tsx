@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import RichTextEditor from "@/components/RichTextEditor";
 import { getHeaderConfig, saveHeaderConfig, HeaderConfig } from "@/lib/configManager";
 import { generateOrderPDF } from "@/lib/pdfGenerator";
 import ProductImageEditor from "@/components/ProductImageEditor";
@@ -622,13 +623,10 @@ export default function AdminPage() {
                 <label htmlFor="descripcion" className="text-sm font-medium text-stone-700">
                   Descripción
                 </label>
-                <textarea
-                  id="descripcion"
+                <RichTextEditor
                   value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                  placeholder="Describe el producto..."
-                  rows={4}
-                  className="resize-none rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  onChange={setDescripcion}
+                  placeholder="Describe el producto (usa formato como viñetas, negrita)..."
                 />
               </div>
 

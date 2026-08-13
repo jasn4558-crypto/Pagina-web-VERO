@@ -24,6 +24,11 @@ export default function ProductCard(props: ProductCardProps) {
   const [added, setAdded] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Strip HTML from description for the small card preview
+  const plainTextDescription = typeof descripcion === "string" 
+    ? descripcion.replace(/<[^>]*>?/gm, ' ') 
+    : descripcion;
+
   const images = imagenes.length > 0 ? imagenes : [];
   const imagenPrincipal = images[0] ?? "";
 
@@ -50,10 +55,10 @@ export default function ProductCard(props: ProductCardProps) {
     <>
       <article
         onClick={() => setIsModalOpen(true)}
-        className="group relative flex flex-col overflow-hidden rounded-xl sm:rounded-2xl border border-stone-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg cursor-pointer"
+        className="group relative flex flex-col overflow-hidden rounded-xl sm:rounded-2xl border border-stone-200/80 bg-white p-2 sm:p-2.5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg cursor-pointer"
       >
         {/* Contenedor de Imagen */}
-        <div className="relative aspect-[4/5] w-full overflow-hidden bg-stone-100 ring-1 ring-stone-200/80">
+        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-lg bg-stone-100 ring-1 ring-stone-200/50">
           {/* Badge Novedad */}
           <span className="absolute left-2 top-2 z-10 flex items-center gap-0.5 rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
             <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
@@ -129,13 +134,13 @@ export default function ProductCard(props: ProductCardProps) {
         </div>
 
         {/* Detalles del Producto */}
-        <div className="flex flex-1 flex-col justify-between p-3 sm:p-4 lg:p-5">
+        <div className="flex flex-1 flex-col justify-between pt-3 pb-1 px-1 sm:px-2">
           <div>
             <h3 className="text-xs font-bold text-stone-900 transition-colors group-hover:text-emerald-700 sm:text-sm lg:text-base line-clamp-1">
               {nombre}
             </h3>
             <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-stone-500 sm:text-xs sm:leading-relaxed">
-              {descripcion}
+              {plainTextDescription}
             </p>
           </div>
 

@@ -87,9 +87,22 @@ function drawImageFit(
  * que causaria caracteres basura en el PDF.
  */
 function pdfSafe(text: string): string {
-  return (text || "")
-    .replace(/[^\u0000-\u00FF]/g, "")  // fuera de Latin-1 (incluye emojis)
-    .replace(/\s+/g, " ")
+  if (!text) return "";
+  
+  // 1. Reemplazar etiquetas de lista con saltos y guiones
+  let parsed = text
+    .replace(/<li>/gi, "\n- ")
+    .replace(/<\/li>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]*>?/gm, "") // Remover cualquier otra etiqueta HTML
+    .replace(/&nbsp;/g, " ");
+    
+  // 2. Limpiar caracteres inválidos para jsPDF Helvetica y colapsar espacios (no saltos de línea)
+  return parsed
+    .replace(/[^\u0000-\u00FF\n\-]/g, "") // Mantener saltos de linea y guiones
+    .replace(/[ \t]+/g, " ") // Colapsar multiples espacios y tabs
+    .replace(/\n\s*\n+/g, "\n") // Colapsar multiples saltos de linea
     .trim();
 }
 

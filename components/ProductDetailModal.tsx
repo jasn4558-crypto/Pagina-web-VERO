@@ -190,9 +190,10 @@ export default function ProductDetailModal({ product, onClose }: ProductDetailMo
                 <h4 className="text-xs font-extrabold uppercase tracking-wider text-stone-400 mb-1">
                   Descripción
                 </h4>
-                <p className="text-stone-600 text-xs sm:text-sm leading-relaxed whitespace-pre-line">
-                  {product.descripcion}
-                </p>
+                <div 
+                  className="text-stone-600 text-xs sm:text-sm leading-relaxed [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:my-1 [&>p]:mb-1 [&>ol]:list-decimal [&>ol]:ml-4"
+                  dangerouslySetInnerHTML={{ __html: product.descripcion }}
+                />
               </div>
             )}
 
