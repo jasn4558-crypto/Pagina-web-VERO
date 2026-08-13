@@ -31,6 +31,13 @@ import { generateOrderPDF } from "@/lib/pdfGenerator";
 import ProductImageEditor from "@/components/ProductImageEditor";
 import { getCurrentUserSession, logoutUserSession } from "@/lib/authManager";
 import { getAllPromos, upsertPromo, deletePromo, togglePromo, PromoRecord } from "@/lib/promoManager";
+import {
+  getAllSubcategoriesAdmin,
+  createSubcategory,
+  updateSubcategory,
+  deleteSubcategory,
+  SubcategoryRecord,
+} from "@/lib/subcategoryManager";
 
 interface Product {
   id: string;
@@ -39,6 +46,7 @@ interface Product {
   descripcion: string;
   imagenes: string[];
   categoria_id?: string | null;
+  subcategoria_id?: string | null;
   created_at?: string;
 }
 
@@ -69,20 +77,26 @@ export default function AdminPage() {
   const [productos, setProductos] = useState<Product[]>([]);
   const [loadingProductos, setLoadingProductos] = useState(true);
   const [categorias, setCategorias] = useState<Category[]>([]);
+  const [subcategorias, setSubcategorias] = useState<SubcategoryRecord[]>([]);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [precio, setPrecio] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
+  const [subcategoriaId, setSubcategoriaId] = useState("");
   const [imagenes, setImagenes] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  // Categorías
+  // Categorías & Subcategorías
   const [nuevaCategoria, setNuevaCategoria] = useState("");
   const [editandoCategoriaId, setEditandoCategoriaId] = useState<string | null>(null);
   const [editandoCategoriaNombre, setEditandoCategoriaNombre] = useState("");
+  const [nuevaSubcatCatId, setNuevaSubcatCatId] = useState("");
+  const [nuevaSubcatNombre, setNuevaSubcatNombre] = useState("");
+  const [editandoSubcatId, setEditandoSubcatId] = useState<string | null>(null);
+  const [editandoSubcatNombre, setEditandoSubcatNombre] = useState("");
 
   // Pedidos
   const [pedidos, setPedidos] = useState<Order[]>([]);
@@ -178,7 +192,7 @@ export default function AdminPage() {
     setLoadingProductos(false);
   }, []);
 
-  // Cargar categorías
+  // Cargar categorías y subcategorías
   const cargarCategorias = useCallback(async () => {
     const { data, error } = await supabase
       .from("categorias")
@@ -188,6 +202,11 @@ export default function AdminPage() {
       console.error("Error al cargar categorías:", error);
     }
     setCategorias((data ?? []) as Category[]);
+  }, []);
+
+  const cargarSubcategorias = useCallback(async () => {
+    const data = await getAllSubcategoriesAdmin();
+    setSubcategorias(data);
   }, []);
 
   // Cargar pedidos
@@ -208,11 +227,12 @@ export default function AdminPage() {
     if (session) {
       cargarProductos();
       cargarCategorias();
+      cargarSubcategorias();
       cargarPedidos();
       cargarHeaderConfig();
       getAllPromos().then(setPromos);
     }
-  }, [session, cargarProductos, cargarCategorias, cargarPedidos, cargarHeaderConfig]);
+  }, [session, cargarProductos, cargarCategorias, cargarSubcategorias, cargarPedidos, cargarHeaderConfig]);
 
   const handleSignOut = async () => {
     logoutUserSession();
@@ -227,6 +247,7 @@ export default function AdminPage() {
     setDescripcion("");
     setPrecio("");
     setCategoriaId("");
+    setSubcategoriaId("");
     setImagenes([]);
     setEditandoId(null);
   };
@@ -283,6 +304,7 @@ export default function AdminPage() {
             descripcion: descripcion.trim(),
             precio: precioNum,
             categoria_id: categoriaId || null,
+            subcategoria_id: subcategoriaId || null,
             ...(urlsImagenes.length > 0 ? { imagenes: urlsImagenes } : {}),
           })
           .eq("id", editandoId);
@@ -294,6 +316,7 @@ export default function AdminPage() {
           descripcion: descripcion.trim(),
           precio: precioNum,
           categoria_id: categoriaId || null,
+          subcategoria_id: subcategoriaId || null,
           imagenes: urlsImagenes,
           activo: true,
         });
@@ -318,6 +341,7 @@ export default function AdminPage() {
     setDescripcion(producto.descripcion);
     setPrecio(String(producto.precio));
     setCategoriaId(producto.categoria_id ?? "");
+    setSubcategoriaId(producto.subcategoria_id ?? "");
     setImagenes([]);
     setError("");
     setSuccess(false);
@@ -385,6 +409,45 @@ export default function AdminPage() {
     }
     cargarCategorias();
     router.refresh();
+  };
+
+  // Subcategorías Handlers
+  const handleCrearSubcategoria = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!nuevaSubcatCatId || !nuevaSubcatNombre.trim()) return;
+
+    try {
+      await createSubcategory(nuevaSubcatCatId, nuevaSubcatNombre.trim());
+      setNuevaSubcatNombre("");
+      cargarSubcategorias();
+      router.refresh();
+    } catch (err) {
+      alert("Error al crear la subcategoría. Asegúrate de haber ejecutado el SQL en Supabase.");
+    }
+  };
+
+  const handleEditarSubcategoria = async (id: string) => {
+    if (!editandoSubcatNombre.trim()) return;
+    const ok = await updateSubcategory(id, { nombre: editandoSubcatNombre.trim() });
+    if (ok) {
+      setEditandoSubcatId(null);
+      setEditandoSubcatNombre("");
+      cargarSubcategorias();
+      router.refresh();
+    } else {
+      alert("Error al editar la subcategoría.");
+    }
+  };
+
+  const handleEliminarSubcategoria = async (id: string) => {
+    if (!confirm("¿Seguro que deseas eliminar esta subcategoría?")) return;
+    const ok = await deleteSubcategory(id);
+    if (ok) {
+      cargarSubcategorias();
+      router.refresh();
+    } else {
+      alert("Error al eliminar la subcategoría.");
+    }
   };
 
   // ===== PEDIDOS =====
@@ -547,7 +610,10 @@ export default function AdminPage() {
                 <select
                   id="categoria"
                   value={categoriaId}
-                  onChange={(e) => setCategoriaId(e.target.value)}
+                  onChange={(e) => {
+                    setCategoriaId(e.target.value);
+                    setSubcategoriaId("");
+                  }}
                   className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                 >
                   <option value="">Sin categoría</option>
@@ -556,6 +622,28 @@ export default function AdminPage() {
                       {cat.nombre}
                     </option>
                   ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label htmlFor="subcategoria" className="text-sm font-medium text-stone-700">
+                  Subcategoría
+                </label>
+                <select
+                  id="subcategoria"
+                  value={subcategoriaId}
+                  disabled={!categoriaId}
+                  onChange={(e) => setSubcategoriaId(e.target.value)}
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+                >
+                  <option value="">Sin subcategoría</option>
+                  {subcategorias
+                    .filter((s) => s.categoria_id === categoriaId)
+                    .map((subcat) => (
+                      <option key={subcat.id} value={subcat.id}>
+                        {subcat.nombre}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -820,6 +908,123 @@ export default function AdminPage() {
                     )}
                   </li>
                 ))}
+              </ul>
+            )}
+          </div>
+
+          {/* ===== SECCIÓN SUBCATEGORÍAS ===== */}
+          <div className="mt-8 mb-4 flex items-center gap-2 border-t border-stone-200 pt-6">
+            <Tag className="h-5 w-5 text-emerald-600" />
+            <h2 className="text-lg font-semibold text-stone-900">Subcategorías</h2>
+          </div>
+
+          {/* Formulario crear subcategoría */}
+          <form
+            onSubmit={handleCrearSubcategoria}
+            className="mb-6 flex flex-col sm:flex-row gap-2 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
+          >
+            <select
+              value={nuevaSubcatCatId}
+              onChange={(e) => setNuevaSubcatCatId(e.target.value)}
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+            >
+              <option value="">Selecciona Categoría...</option>
+              {categorias.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.nombre}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={nuevaSubcatNombre}
+              onChange={(e) => setNuevaSubcatNombre(e.target.value)}
+              placeholder="Nombre de subcategoría (ej. Zapatos, Ropa)..."
+              className="flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+            />
+            <button
+              type="submit"
+              disabled={!nuevaSubcatCatId || !nuevaSubcatNombre.trim()}
+              className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Agregar Subcategoría
+            </button>
+          </form>
+
+          {/* Lista de subcategorías */}
+          <div className="rounded-2xl border border-stone-200 bg-white shadow-sm">
+            {subcategorias.length === 0 ? (
+              <p className="px-4 py-8 text-center text-sm text-stone-500">
+                No hay subcategorías creadas todavía.
+              </p>
+            ) : (
+              <ul className="divide-y divide-stone-100">
+                {subcategorias.map((subcat) => {
+                  const parentCat = categorias.find((c) => c.id === subcat.categoria_id);
+                  return (
+                    <li key={subcat.id} className="flex items-center gap-3 px-4 py-3">
+                      {editandoSubcatId === subcat.id ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editandoSubcatNombre}
+                            onChange={(e) => setEditandoSubcatNombre(e.target.value)}
+                            className="flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-emerald-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleEditarSubcategoria(subcat.id)}
+                            className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50"
+                          >
+                            <Save className="h-4 w-4" />
+                            Guardar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditandoSubcatId(null);
+                              setEditandoSubcatNombre("");
+                            }}
+                            className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-stone-500 hover:bg-stone-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex flex-1 flex-col">
+                            <span className="text-sm font-medium text-stone-900">
+                              {subcat.nombre}
+                            </span>
+                            <span className="text-xs font-semibold text-emerald-600">
+                              Categoría: {parentCat?.nombre || "N/A"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditandoSubcatId(subcat.id);
+                              setEditandoSubcatNombre(subcat.nombre);
+                            }}
+                            className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarSubcategoria(subcat.id)}
+                            className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Eliminar
+                          </button>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

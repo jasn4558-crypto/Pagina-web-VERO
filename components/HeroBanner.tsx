@@ -4,14 +4,19 @@ import { useEffect, useState } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { getHeaderConfig, DEFAULT_HEADER_CONFIG, HeaderConfig } from "@/lib/configManager";
 import CatalogViewer from "./CatalogViewer";
-import { CatalogCategory, CatalogProduct } from "@/lib/catalogPdfGenerator";
+import { CatalogCategory, CatalogSubcategory, CatalogProduct } from "@/lib/catalogPdfGenerator";
 
 interface HeroBannerProps {
   categories?: CatalogCategory[];
+  subcategories?: CatalogSubcategory[];
   products?: CatalogProduct[];
 }
 
-export default function HeroBanner({ categories = [], products = [] }: HeroBannerProps) {
+export default function HeroBanner({
+  categories = [],
+  subcategories = [],
+  products = [],
+}: HeroBannerProps) {
   const [config, setConfig] = useState<HeaderConfig>(DEFAULT_HEADER_CONFIG);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
 
@@ -69,6 +74,7 @@ export default function HeroBanner({ categories = [], products = [] }: HeroBanne
         isOpen={isCatalogOpen}
         onClose={() => setIsCatalogOpen(false)}
         categories={categories}
+        subcategories={subcategories}
         products={products}
       />
     </>

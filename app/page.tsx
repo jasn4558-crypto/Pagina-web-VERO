@@ -3,12 +3,11 @@ import FloatingCart from "@/components/FloatingCart";
 import CategorySidebar from "@/components/CategorySidebar";
 import HeroBanner from "@/components/HeroBanner";
 import PromoCarousel from "@/components/PromoCarousel";
-import ViewToggle from "@/components/ViewToggle";
 import UserMenu from "@/components/UserMenu";
 import { supabase } from "@/lib/supabase";
 import { getPromos } from "@/lib/promoManager";
+import { getSubcategories } from "@/lib/subcategoryManager";
 
-// Siempre consulta la base de datos fresca (evita caché agresiva de Server Components)
 export const dynamic = "force-dynamic";
 
 interface Product {
@@ -18,6 +17,9 @@ interface Product {
   descripcion: string;
   imagenes: string[];
   categoria_id: string;
+  subcategoria_id?: string | null;
+  categoriaNombre?: string;
+  subcategoriaNombre?: string;
 }
 
 interface Category {
@@ -26,18 +28,31 @@ interface Category {
   activo: boolean;
 }
 
+interface Subcategory {
+  id: string;
+  categoria_id: string;
+  nombre: string;
+  activo: boolean;
+}
+
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ categoria?: string }>;
+  searchParams: Promise<{ categoria?: string; subcategoria?: string }>;
 }) {
   const params = await searchParams;
   const categoriaId = params.categoria;
+  const subcategoriaId = params.subcategoria;
 
   let query = supabase.from("productos").select("*").eq("activo", true);
-  if (categoriaId) {
+
+  if (categoriaId && categoriaId !== "all") {
     query = query.eq("categoria_id", categoriaId);
   }
+  if (subcategoriaId) {
+    query = query.eq("subcategoria_id", subcategoriaId);
+  }
+
   const { data: productos, error } = await query.order("created_at", {
     ascending: false,
   });
@@ -51,46 +66,77 @@ export default async function Home({
     .eq("activo", true)
     .order("nombre");
 
+  const subcategorias = await getSubcategories();
   const promos = await getPromos();
+
+  const allCategories: Category[] = (categorias ?? []).map((c: any) => ({
+    id: c.id,
+    nombre: c.nombre,
+    activo: c.activo,
+  }));
+
+  const allSubcategories: Subcategory[] = subcategorias.map((s: any) => ({
+    id: s.id,
+    categoria_id: s.categoria_id,
+    nombre: s.nombre,
+    activo: s.activo,
+  }));
+
+  const catMap = new Map<string, string>();
+  allCategories.forEach((c) => catMap.set(c.id, c.nombre));
+
+  const subcatMap = new Map<string, string>();
+  allSubcategories.forEach((s) => subcatMap.set(s.id, s.nombre));
 
   const products: Product[] = (productos ?? []).map((p: any) => ({
     id: p.id,
     nombre: p.nombre,
     precio: p.precio,
-    descripcion: p.descripcion,
+    descripcion: p.descripcion || "",
     imagenes: Array.isArray(p.imagenes) ? p.imagenes : [],
     categoria_id: p.categoria_id,
+    subcategoria_id: p.subcategoria_id,
+    categoriaNombre: catMap.get(p.categoria_id),
+    subcategoriaNombre: p.subcategoria_id ? subcatMap.get(p.subcategoria_id) : undefined,
   }));
 
-  const allCategories: Category[] = [
-    ...(categorias ?? []).map((c: any) => ({
-      id: c.id,
-      nombre: c.nombre,
-      activo: c.activo,
-    })),
-  ];
-
-  const currentCategoryName = categoriaId
-    ? allCategories.find((c) => c.id === categoriaId)?.nombre ?? "Productos"
-    : "Todos los productos";
+  let currentCategoryName = "Todos los productos";
+  if (categoriaId && categoriaId !== "all") {
+    const catObj = allCategories.find((c) => c.id === categoriaId);
+    if (catObj) {
+      currentCategoryName = catObj.nombre;
+      if (subcategoriaId) {
+        const subcatObj = allSubcategories.find((s) => s.id === subcategoriaId);
+        if (subcatObj) {
+          currentCategoryName += ` — ${subcatObj.nombre}`;
+        }
+      }
+    }
+  }
 
   return (
     <main className="flex-1 w-full bg-stone-50">
       {/* 1. Hero Banner */}
-      <HeroBanner categories={allCategories} products={products} />
+      <HeroBanner
+        categories={allCategories}
+        subcategories={allSubcategories}
+        products={products}
+      />
 
       {/* 2. Carrusel de Promociones */}
       <PromoCarousel items={promos} />
 
-      {/* 3. Contenido principal con Categorías Horizontales Arriba */}
+      {/* 3. Contenido principal con Categorías y Subcategorías */}
       <div id="productos" className="relative w-full">
-        {/* Barra de Categorías Horizontal (Sticky Top) */}
+        {/* Barra de Categorías Horizontal */}
         <CategorySidebar
           categories={allCategories}
-          selectedId={categoriaId ?? "all"}
+          subcategories={allSubcategories}
+          selectedCategoryId={categoriaId ?? "all"}
+          selectedSubcategoryId={subcategoriaId}
         />
 
-        {/* Cuadrícula de Productos (2 col en móvil, 3 en md, 4 en lg) */}
+        {/* Cuadrícula de Productos */}
         <div className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
           <header className="mb-6 flex items-center justify-between">
             <div>
@@ -106,10 +152,10 @@ export default async function Home({
           {products.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-stone-300 bg-white/60 px-6 py-20 text-center shadow-sm">
               <p className="text-stone-500 font-medium">
-                No hay productos disponibles en esta categoría.
+                No hay productos disponibles en esta sección.
               </p>
               <p className="mt-1 text-xs text-stone-400">
-                Prueba seleccionando otra categoría o vuelve pronto. ✨
+                Prueba seleccionando otra categoría o subcategoría. ✨
               </p>
             </div>
           ) : (
