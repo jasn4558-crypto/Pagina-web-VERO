@@ -493,19 +493,59 @@ export async function generateCatalogPDF(
         }
 
         // ── Barra de precio (posicion fija) ──
-        doc.setFillColor(...C_EMERALD);
-        doc.roundedRect(cardX + 3, cardY + REL_PRICE_Y, CARD_W - 6, PRICE_H, 2, 2, "F");
+        if (prod.precioOriginal) {
+          // Fondo rojo para indicar oferta
+          doc.setFillColor(225, 29, 72); // rose-600
+          doc.roundedRect(cardX + 3, cardY + REL_PRICE_Y, CARD_W - 6, PRICE_H, 2, 2, "F");
 
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(...C_WHITE);
-        // Usar CRC en lugar de simbolo colón para evitar encoding errors en jsPDF
-        doc.text(
-          `CRC ${prod.precio.toLocaleString("es-CR")}`,
-          cardX + CARD_W / 2,
-          cardY + REL_PRICE_Y + 6.2,
-          { align: "center" }
-        );
+          // Precio original tachado (blanco opaco a la izquierda)
+          const origText = `CRC ${prod.precioOriginal.toLocaleString("es-CR")}`;
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7);
+          doc.setTextColor(255, 200, 200); // rosa claro
+          const origW = doc.getTextWidth(origText);
+          const totalW = origW; // solo orig de momento, agregaremos nuevo precio
+          // Centrar: precio nuevo sera principal
+          const origX = cardX + CARD_W / 2 - origW - 1;
+          const priceBaseY = cardY + REL_PRICE_Y + 6.2;
+          doc.text(origText, origX, priceBaseY);
+          // Linea de tachado sobre el texto original
+          doc.setDrawColor(255, 180, 180);
+          doc.setLineWidth(0.35);
+          doc.line(origX, priceBaseY - 1.5, origX + origW, priceBaseY - 1.5);
+
+          // Precio con descuento (blanco, bold, derecha)
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(...C_WHITE);
+          doc.text(
+            `CRC ${prod.precio.toLocaleString("es-CR")}`,
+            cardX + CARD_W / 2 + 1,
+            priceBaseY,
+            { align: "left" }
+          );
+
+          // Badge "OFERTA" en imagen
+          doc.setFillColor(225, 29, 72);
+          doc.roundedRect(cardX + 3, cardY + REL_IMG_Y + 2, 18, 5, 1, 1, "F");
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(5.5);
+          doc.setTextColor(...C_WHITE);
+          doc.text("OFERTA", cardX + 3 + 9, cardY + REL_IMG_Y + 5.5, { align: "center" });
+        } else {
+          doc.setFillColor(...C_EMERALD);
+          doc.roundedRect(cardX + 3, cardY + REL_PRICE_Y, CARD_W - 6, PRICE_H, 2, 2, "F");
+
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(...C_WHITE);
+          doc.text(
+            `CRC ${prod.precio.toLocaleString("es-CR")}`,
+            cardX + CARD_W / 2,
+            cardY + REL_PRICE_Y + 6.2,
+            { align: "center" }
+          );
+        }
       });
 
       // ── Pie de pagina ──

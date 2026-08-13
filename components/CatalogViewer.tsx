@@ -274,6 +274,11 @@ export default function CatalogViewer({
                                 No img
                               </div>
                             )}
+                            {prod.precioOriginal && (
+                              <span className="absolute top-1 left-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-extrabold text-white shadow">
+                                OFERTA
+                              </span>
+                            )}
                             {prod.imagenes.length > 1 && (
                               <span className="absolute bottom-1 right-1 rounded-md bg-stone-900/70 px-1.5 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
                                 +{prod.imagenes.length - 1} fotos
@@ -283,6 +288,13 @@ export default function CatalogViewer({
                           <p className="line-clamp-2 w-full text-center text-xs font-semibold text-stone-800 group-hover:text-emerald-700 transition-colors">
                             {prod.nombre}
                           </p>
+                          {/* Descripción con formato HTML */}
+                          {(prod as any).descripcion && (
+                            <div
+                              className="w-full text-left text-[10px] leading-snug text-stone-500 line-clamp-3 [&>ul]:list-disc [&>ul]:ml-3 [&>ol]:list-decimal [&>ol]:ml-3 [&>li]:block [&>p]:block [&>b]:font-bold [&>strong]:font-bold [&>em]:italic [&>br]:block"
+                              dangerouslySetInnerHTML={{ __html: (prod as any).descripcion }}
+                            />
+                          )}
                           {prod.precioOriginal ? (
                             <div className="flex flex-col items-center leading-tight">
                               <span className="text-[10px] text-stone-400 line-through">
