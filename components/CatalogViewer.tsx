@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { X, ChevronLeft, ChevronRight, Download, BookOpen, Loader2, Tag, Layers } from "lucide-react";
 import { generateCatalogPDF, CatalogCategory, CatalogSubcategory, CatalogProduct } from "@/lib/catalogPdfGenerator";
+import { getHeaderConfig, DEFAULT_HEADER_CONFIG, HeaderConfig } from "@/lib/configManager";
 import ProductDetailModal, { ProductDetail } from "./ProductDetailModal";
 
 interface CatalogViewerProps {
@@ -24,6 +25,11 @@ export default function CatalogViewer({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState(0);
   const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
+  const [headerConfig, setHeaderConfig] = useState<HeaderConfig>(DEFAULT_HEADER_CONFIG);
+
+  useEffect(() => {
+    getHeaderConfig().then((cfg) => setHeaderConfig(cfg));
+  }, []);
 
   const PRODS_PER_PAGE = 6;
 
@@ -183,8 +189,11 @@ export default function CatalogViewer({
               {currentPageData.type === "index" ? (
                 <div className="flex-1 animate-in fade-in duration-300">
                   <div className="mb-8 text-center">
-                    <h1 className="text-2xl font-black text-emerald-600 sm:text-3xl uppercase tracking-tight">
-                      Tienda Verónica
+                    <h1 className="text-2xl font-black text-stone-900 sm:text-3xl uppercase tracking-tight">
+                      {headerConfig.titulo_principal}{" "}
+                      <span className="italic font-light text-emerald-600">
+                        {headerConfig.titulo_destacado}
+                      </span>
                     </h1>
                     <p className="mt-1 text-sm text-stone-500">Catálogo Completo por Categorías y Subcategorías</p>
                   </div>

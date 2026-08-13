@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import { extractAddressFromOrder, getProductItems } from "./orderUtils";
+import { getHeaderConfig } from "./configManager";
 
 export interface OrderItem {
   nombre: string;
@@ -83,6 +84,10 @@ export async function generateOrderPDF(order: OrderData) {
   const distrito = addr.distrito;
   const direccionExacta = addr.direccion_exacta;
 
+  // Nombre de tienda desde configuración
+  const headerConfig = await getHeaderConfig();
+  const storeName = `${headerConfig.titulo_principal} ${headerConfig.titulo_destacado}`.trim().toUpperCase() || "STORE";
+
   // 1. Encabezado principal (Banner Verde Esmeralda)
   doc.setFillColor(16, 185, 129); // Emerald-600
   doc.rect(0, 0, 210, 32, "F");
@@ -90,7 +95,7 @@ export async function generateOrderPDF(order: OrderData) {
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
-  doc.text("TIENDA VERÓNICA", 15, 17);
+  doc.text(storeName, 15, 17);
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");

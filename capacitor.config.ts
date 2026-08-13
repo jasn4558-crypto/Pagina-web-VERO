@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.tiendaveronica.app',
-  appName: 'Tienda Verónica',
+  appName: 'HANNAH STORE',
   webDir: 'public',
   server: {
     url: 'https://pagina-web-vero.vercel.app/admin',

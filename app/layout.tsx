@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tienda Verónica",
+  title: "HANNAH STORE",
   description:
-    "Productos artesanales hechos con amor. Compra fácil por WhatsApp.",
+    "Catálogo de productos artesanales. Compra fácil por WhatsApp.",
 };
 
 export const viewport: Viewport = {
