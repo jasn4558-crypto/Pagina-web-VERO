@@ -53,7 +53,7 @@ export default function ProductCard(props: ProductCardProps) {
         className="group relative flex flex-col overflow-hidden rounded-xl sm:rounded-2xl border border-stone-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg cursor-pointer"
       >
         {/* Contenedor de Imagen */}
-        <div className="relative aspect-[4/5] w-full overflow-hidden bg-stone-100">
+        <div className="relative aspect-[4/5] w-full overflow-hidden bg-stone-100 ring-1 ring-stone-200/80">
           {/* Badge Novedad */}
           <span className="absolute left-2 top-2 z-10 flex items-center gap-0.5 rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm">
             <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />

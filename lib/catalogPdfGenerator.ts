@@ -29,28 +29,31 @@ interface LoadedImageData {
   height: number;
 }
 
+// ─────────────────────────────────────────────────────
+// UTILIDADES
+// ─────────────────────────────────────────────────────
+
 async function loadImgAsDataUrl(url?: string): Promise<LoadedImageData | null> {
   if (!url || typeof window === "undefined") return null;
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
-    const timer = setTimeout(() => resolve(null), 5000);
+    const timer = setTimeout(() => resolve(null), 6000);
 
     img.onload = () => {
       clearTimeout(timer);
       try {
-        const width = img.naturalWidth || 200;
-        const height = img.naturalHeight || 200;
+        const w = img.naturalWidth || 300;
+        const h = img.naturalHeight || 300;
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext("2d");
         if (!ctx) { resolve(null); return; }
         ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(0, 0, width, height);
+        ctx.fillRect(0, 0, w, h);
         ctx.drawImage(img, 0, 0);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
-        resolve({ dataUrl, format: "JPEG", width, height });
+        resolve({ dataUrl: canvas.toDataURL("image/jpeg", 0.88), format: "JPEG", width: w, height: h });
       } catch {
         resolve(null);
       }
@@ -60,44 +63,50 @@ async function loadImgAsDataUrl(url?: string): Promise<LoadedImageData | null> {
   });
 }
 
-/** Dibuja texto con salto de línea automático y retorna la Y final */
-function drawWrappedText(
+/** Dibuja imagen centrada y con ratio correcto dentro de un box */
+function drawImageFit(
+  doc: jsPDF,
+  imgData: LoadedImageData,
+  boxX: number, boxY: number,
+  boxW: number, boxH: number
+) {
+  const ratio = Math.min(boxW / imgData.width, boxH / imgData.height);
+  const fitW = imgData.width * ratio;
+  const fitH = imgData.height * ratio;
+  doc.addImage(
+    imgData.dataUrl, imgData.format,
+    boxX + (boxW - fitW) / 2,
+    boxY + (boxH - fitH) / 2,
+    fitW, fitH
+  );
+}
+
+/**
+ * Dibuja texto limitado a un número máximo de líneas.
+ * Retorna la Y donde terminó el texto.
+ */
+function drawText(
   doc: jsPDF,
   text: string,
   x: number,
   y: number,
   maxWidth: number,
   lineHeight: number,
-  maxLines = 3
+  maxLines: number
 ): number {
-  const lines = doc.splitTextToSize(text, maxWidth);
-  const clipped = lines.slice(0, maxLines);
-  if (lines.length > maxLines) {
-    const last = clipped[maxLines - 1] as string;
-    clipped[maxLines - 1] = last.length > 3 ? last.slice(0, -3) + "..." : last + "...";
+  const raw = doc.splitTextToSize(text.trim(), maxWidth) as string[];
+  const lines = raw.slice(0, maxLines);
+  if (raw.length > maxLines && lines.length > 0) {
+    const last = lines[lines.length - 1];
+    lines[lines.length - 1] = last.length > 3 ? last.slice(0, -3).trimEnd() + "..." : last;
   }
-  clipped.forEach((line: string, i: number) => {
-    doc.text(line, x, y + i * lineHeight);
-  });
-  return y + clipped.length * lineHeight;
+  lines.forEach((line, i) => doc.text(line, x, y + i * lineHeight));
+  return y + lines.length * lineHeight;
 }
 
-/** Dibuja una imagen con ratio correcto centrada en el box */
-function drawImageFit(
-  doc: jsPDF,
-  imgData: LoadedImageData,
-  boxX: number,
-  boxY: number,
-  boxW: number,
-  boxH: number
-) {
-  const ratio = Math.min(boxW / imgData.width, boxH / imgData.height);
-  const fitW = imgData.width * ratio;
-  const fitH = imgData.height * ratio;
-  const imgX = boxX + (boxW - fitW) / 2;
-  const imgY = boxY + (boxH - fitH) / 2;
-  doc.addImage(imgData.dataUrl, imgData.format, imgX, imgY, fitW, fitH);
-}
+// ─────────────────────────────────────────────────────
+// GENERADOR PRINCIPAL
+// ─────────────────────────────────────────────────────
 
 export async function generateCatalogPDF(
   categories: CatalogCategory[],
@@ -107,230 +116,263 @@ export async function generateCatalogPDF(
 ) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-  // Nombre de la tienda desde configuración
+  // Nombre de tienda desde configuracion
   const headerConfig = await getHeaderConfig();
   const storeName = `${headerConfig.titulo_principal} ${headerConfig.titulo_destacado}`.trim().toUpperCase() || "TIENDA";
-  const storeTagline = headerConfig.descripcion || "Catálogo de Productos";
+  const storeTagline = headerConfig.descripcion || "";
 
-  // Emerald palette
-  const COLOR_EMERALD: [number, number, number] = [16, 185, 129];
-  const COLOR_DARK: [number, number, number] = [15, 23, 42];
-  const COLOR_MID: [number, number, number] = [71, 85, 105];
-  const COLOR_LIGHT: [number, number, number] = [241, 245, 249];
-  const COLOR_BORDER: [number, number, number] = [226, 232, 240];
-  const COLOR_WHITE: [number, number, number] = [255, 255, 255];
+  // Paleta de colores
+  const C_EMERALD:  [number,number,number] = [16, 185, 129];
+  const C_DARK:     [number,number,number] = [15, 23, 42];
+  const C_MID:      [number,number,number] = [71, 85, 105];
+  const C_LIGHT:    [number,number,number] = [241, 245, 249];
+  const C_BORDER:   [number,number,number] = [210, 218, 228];
+  const C_WHITE:    [number,number,number] = [255, 255, 255];
 
-  // PRODUCTOS POR PÁGINA: 2 columnas, 2 filas = 4 (con descripción e imágenes múltiples)
-  const PRODS_PER_PAGE = 4;
-
-  // Agrupar productos por categoría y subcategoría
+  // ── Agrupar por categoria / subcategoria ──
   interface Group {
     catName: string;
     subcatName?: string;
     products: CatalogProduct[];
   }
   const groups: Group[] = [];
-  categories.forEach((cat) => {
-    const catProducts = products.filter((p) => p.categoria_id === cat.id);
-    if (catProducts.length === 0) return;
-    const catSubcats = subcategories.filter((s) => s.categoria_id === cat.id);
-    const usedSubcatIds = new Set<string>();
 
-    catSubcats.forEach((subcat) => {
-      const subProds = catProducts.filter((p) => p.subcategoria_id === subcat.id);
-      if (subProds.length > 0) {
-        usedSubcatIds.add(subcat.id);
-        groups.push({ catName: cat.nombre, subcatName: subcat.nombre, products: subProds });
+  categories.forEach((cat) => {
+    const catProds = products.filter((p) => p.categoria_id === cat.id);
+    if (!catProds.length) return;
+
+    const catSubcats = subcategories.filter((s) => s.categoria_id === cat.id);
+    const usedSubcats = new Set<string>();
+
+    catSubcats.forEach((sub) => {
+      const sp = catProds.filter((p) => p.subcategoria_id === sub.id);
+      if (sp.length) {
+        usedSubcats.add(sub.id);
+        groups.push({ catName: cat.nombre, subcatName: sub.nombre, products: sp });
       }
     });
 
-    const sinSubcat = catProducts.filter((p) => !p.subcategoria_id || !usedSubcatIds.has(p.subcategoria_id));
-    if (sinSubcat.length > 0) {
-      groups.push({ catName: cat.nombre, subcatName: catSubcats.length > 0 ? "General" : undefined, products: sinSubcat });
+    const rest = catProds.filter((p) => !p.subcategoria_id || !usedSubcats.has(p.subcategoria_id));
+    if (rest.length) {
+      groups.push({ catName: cat.nombre, subcatName: catSubcats.length ? "General" : undefined, products: rest });
     }
   });
 
-  if (groups.length === 0) {
-    alert("No hay productos con categoría para generar el catálogo.");
-    return;
-  }
+  if (!groups.length) { alert("No hay productos con categoría para generar el catálogo."); return; }
 
-  // Pre-calcular páginas para el índice interactivo
-  let tempPage = 2; // Página 1 = Portada+Índice
+  const PRODS_PER_PAGE = 4;
+
+  // ── Pre-calcular paginas para el indice ──
+  let tempPage = 2;
   const indexEntries: { label: string; isHeader: boolean; page: number }[] = [];
-  let prevCatName = "";
+  let prevCat = "";
   groups.forEach((g) => {
-    if (g.catName !== prevCatName) {
-      prevCatName = g.catName;
+    if (g.catName !== prevCat) {
+      prevCat = g.catName;
       indexEntries.push({ label: g.catName, isHeader: true, page: tempPage });
     }
     if (g.subcatName) {
-      indexEntries.push({ label: `  • ${g.subcatName}`, isHeader: false, page: tempPage });
+      indexEntries.push({ label: `  ${g.subcatName}`, isHeader: false, page: tempPage });
     }
     tempPage += Math.ceil(g.products.length / PRODS_PER_PAGE);
   });
 
-  // ─────────────────────────────────────────────────────
-  // PÁGINA 1: Portada + Índice Interactivo
-  // ─────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════
+  // PAGINA 1 — PORTADA + INDICE
+  // ═══════════════════════════════════════════════════
 
-  // Banner superior
-  doc.setFillColor(...COLOR_DARK);
-  doc.rect(0, 0, 210, 55, "F");
+  // Banner oscuro
+  doc.setFillColor(...C_DARK);
+  doc.rect(0, 0, 210, 52, "F");
+  doc.setFillColor(...C_EMERALD);
+  doc.rect(0, 44, 210, 8, "F");
 
-  // Franja verde decorativa
-  doc.setFillColor(...COLOR_EMERALD);
-  doc.rect(0, 47, 210, 8, "F");
-
-  // Logo / nombre de tienda
-  doc.setTextColor(...COLOR_WHITE);
+  // Nombre tienda
+  doc.setTextColor(...C_WHITE);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(32);
-  doc.text(storeName, 105, 26, { align: "center" });
+  doc.setFontSize(30);
+  doc.text(storeName, 105, 24, { align: "center" });
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "italic");
-  doc.setTextColor(200, 240, 225);
-  const taglineLines = doc.splitTextToSize(storeTagline, 170);
-  doc.text(taglineLines.slice(0, 2), 105, 36, { align: "center" });
+  // Tagline
+  if (storeTagline) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(190, 235, 215);
+    const tLines = doc.splitTextToSize(storeTagline, 165) as string[];
+    doc.text(tLines.slice(0, 2) as string[], 105, 33, { align: "center" });
+  }
 
-  doc.setFontSize(11);
+  // "CATALOGO DE PRODUCTOS" en la franja verde
+  doc.setFontSize(10.5);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...COLOR_WHITE);
-  doc.text("CATÁLOGO DE PRODUCTOS", 105, 51, { align: "center" });
+  doc.setTextColor(...C_WHITE);
+  doc.text("CATALOGO DE PRODUCTOS", 105, 50, { align: "center" });
 
   // Fecha
   const fecha = new Date().toLocaleDateString("es-CR", { day: "2-digit", month: "long", year: "numeric" });
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(...COLOR_MID);
-  doc.text(`Generado el ${fecha}`, 105, 63, { align: "center" });
+  doc.setTextColor(...C_MID);
+  doc.text(`Generado el ${fecha}`, 105, 62, { align: "center" });
 
-  // Encabezado del índice
-  doc.setFontSize(14);
+  // Titulo indice
+  doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...COLOR_DARK);
-  doc.text("ÍNDICE DE CATEGORÍAS", 18, 76);
+  doc.setTextColor(...C_DARK);
+  doc.text("INDICE DE CATEGORIAS", 18, 74);
 
-  // Línea verde
-  doc.setDrawColor(...COLOR_EMERALD);
-  doc.setLineWidth(0.8);
-  doc.line(18, 78, 192, 78);
+  doc.setDrawColor(...C_EMERALD);
+  doc.setLineWidth(0.7);
+  doc.line(18, 76, 192, 76);
   doc.setLineWidth(0.2);
 
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "italic");
-  doc.setTextColor(...COLOR_MID);
-  doc.text("Toca o haz clic en una categoría para ir directamente a esa sección.", 18, 84);
+  doc.setTextColor(...C_MID);
+  doc.text("Toca una categoria para ir directamente a esa seccion.", 18, 82);
 
-  let indexY = 92;
+  let iy = 90;
   indexEntries.forEach((entry) => {
-    if (indexY > 270) return;
-
+    if (iy > 272) return;
     if (entry.isHeader) {
-      // Fondo del encabezado de categoría
-      doc.setFillColor(...COLOR_LIGHT);
-      doc.roundedRect(18, indexY - 4, 174, 9, 1, 1, "F");
+      doc.setFillColor(...C_LIGHT);
+      doc.roundedRect(18, iy - 4, 174, 9, 1.5, 1.5, "F");
 
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
-      doc.setTextColor(...COLOR_EMERALD);
-      doc.text(entry.label.toUpperCase(), 22, indexY + 2.5);
+      doc.setFontSize(10);
+      doc.setTextColor(...C_EMERALD);
+      doc.text(entry.label.toUpperCase(), 23, iy + 2.5);
 
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...COLOR_MID);
-      doc.text(`Pág. ${entry.page}`, 188, indexY + 2.5, { align: "right" });
-
-      doc.link(18, indexY - 4, 174, 9, { pageNumber: entry.page });
-      indexY += 12;
+      doc.setTextColor(...C_MID);
+      doc.text(`Pag. ${entry.page}`, 188, iy + 2.5, { align: "right" });
+      doc.link(18, iy - 4, 174, 9, { pageNumber: entry.page });
+      iy += 12;
     } else {
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9.5);
-      doc.setTextColor(...COLOR_DARK);
-      doc.text(entry.label, 26, indexY);
+      doc.setFontSize(9);
+      doc.setTextColor(...C_DARK);
+      doc.text(entry.label, 26, iy);
 
-      doc.setTextColor(...COLOR_MID);
-      doc.text(`Pág. ${entry.page}`, 188, indexY, { align: "right" });
+      doc.setTextColor(...C_MID);
+      doc.text(`Pag. ${entry.page}`, 188, iy, { align: "right" });
 
-      // Puntos entre nombre y página
-      doc.setDrawColor(...COLOR_BORDER);
-      doc.setLineDashPattern([1, 2], 0);
-      const labelWidth = doc.getTextWidth(entry.label) + 26;
-      doc.line(labelWidth + 4, indexY - 0.5, 178, indexY - 0.5);
+      // Linea punteada
+      doc.setDrawColor(...C_BORDER);
+      doc.setLineDashPattern([0.5, 2], 0);
+      const lw = doc.getTextWidth(entry.label);
+      doc.line(26 + lw + 3, iy - 0.5, 180, iy - 0.5);
       doc.setLineDashPattern([], 0);
 
-      doc.link(26, indexY - 4, 162, 7, { pageNumber: entry.page });
-      indexY += 9;
+      doc.link(26, iy - 4, 162, 7, { pageNumber: entry.page });
+      iy += 9;
     }
   });
 
-  // Pie de portada
-  doc.setFillColor(...COLOR_DARK);
-  doc.rect(0, 282, 210, 15, "F");
+  // Pie portada
+  doc.setFillColor(...C_DARK);
+  doc.rect(0, 281, 210, 16, "F");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.setTextColor(...COLOR_WHITE);
-  doc.text(`${storeName} · Precios en CRC ₡ · Envío a coordinar`, 105, 291, { align: "center" });
+  doc.setTextColor(...C_WHITE);
+  doc.text(`${storeName}  |  Precios en CRC  |  Envio a coordinar`, 105, 291, { align: "center" });
 
-  // ─────────────────────────────────────────────────────
-  // CARGA DE IMÁGENES: todas las imágenes de todos los productos
-  // ─────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════
+  // CARGAR TODAS LAS IMAGENES
+  // ═══════════════════════════════════════════════════
   const allUrls = new Set<string>();
-  products.forEach((p) => {
-    (p.imagenes || []).forEach((url) => { if (url) allUrls.add(url); });
-  });
-  const allUrlsArray = Array.from(allUrls);
+  products.forEach((p) => (p.imagenes || []).forEach((u) => { if (u) allUrls.add(u); }));
+  const urlArr = Array.from(allUrls);
   const loadedImages: Record<string, LoadedImageData | null> = {};
 
-  let loadedCount = 0;
-  const CHUNK = 5;
-  for (let i = 0; i < allUrlsArray.length; i += CHUNK) {
-    const chunk = allUrlsArray.slice(i, i + CHUNK);
-    const results = await Promise.all(chunk.map((url) => loadImgAsDataUrl(url)));
-    chunk.forEach((url, idx) => { loadedImages[url] = results[idx]; });
-    loadedCount += chunk.length;
-    onProgress?.(Math.floor((loadedCount / allUrlsArray.length) * 100));
+  const CHUNK = 4;
+  for (let i = 0; i < urlArr.length; i += CHUNK) {
+    const chunk = urlArr.slice(i, i + CHUNK);
+    const results = await Promise.all(chunk.map((u) => loadImgAsDataUrl(u)));
+    chunk.forEach((u, idx) => { loadedImages[u] = results[idx]; });
+    onProgress?.(Math.floor(((i + CHUNK) / urlArr.length) * 100));
   }
 
-  // ─────────────────────────────────────────────────────
-  // PÁGINAS DE PRODUCTOS
-  // Layout: 2 columnas × 2 filas = 4 productos por página
-  // Cada tarjeta: imagen principal grande + galería de miniaturas + nombre + descripción + precio
-  // ─────────────────────────────────────────────────────
-  const CARD_W = 86;
-  const CARD_H = 115;
+  // ═══════════════════════════════════════════════════
+  // PAGINAS DE PRODUCTOS
+  // Layout FIJO (todas las posiciones relativas a cardY):
+  //
+  //   cardY + 2          → imagen (IMG_H = 50mm)
+  //   cardY + 54         → fila de miniaturas (10mm, siempre reservada)
+  //   cardY + 65.5       → linea separadora
+  //   cardY + 68         → nombre producto (2 lineas, lh=5mm → hasta y+78)
+  //   cardY + 79         → descripcion (3 lineas, lh=4mm → hasta y+91)
+  //   cardY + 109        → precio (barra esmeralda, h=9mm → hasta y+118)
+  //   cardY + 120        → fin de tarjeta
+  //
+  //  START_Y = 28; CARD_H = 120; ROW_GAP = 5; CARD_W = 86; COL_GAP = 8; MARGIN_X = 15
+  //  2 filas: 28 + 2*(120+5) = 28+250 = 278 ✓ (< 281 pie de pagina)
+  // ═══════════════════════════════════════════════════
+  const CARD_W  = 86;
+  const CARD_H  = 120;
   const COL_GAP = 8;
-  const ROW_GAP = 6;
+  const ROW_GAP = 5;
   const MARGIN_X = 15;
-  const START_Y = 30;
+  const START_Y  = 28;
+
+  const IMG_H  = 50;
+  const IMG_W  = CARD_W - 4; // 82mm
+
+  // Posiciones relativas fijas
+  const REL_IMG_Y      = 2;       // imagen empieza aquí
+  const REL_MINI_Y     = 54;      // miniaturas (siempre 10mm reservados)
+  const MINI_H         = 10;
+  const REL_SEP_Y      = 65;      // línea separadora
+  const REL_NAME_Y     = 69;      // nombre empieza aquí
+  const NAME_LH        = 4.8;     // interlineado nombre
+  const NAME_LINES     = 2;
+  const REL_DESC_Y     = 79;      // descripción empieza aquí
+  const DESC_LH        = 3.8;     // interlineado descripción
+  const DESC_LINES     = 3;
+  const REL_PRICE_Y    = 109;     // barra de precio
+  const PRICE_H        = 9;
 
   groups.forEach((group) => {
     const totalPages = Math.ceil(group.products.length / PRODS_PER_PAGE);
+    const sectionTitle = group.subcatName
+      ? `${group.catName.toUpperCase()}  /  ${group.subcatName.toUpperCase()}`
+      : group.catName.toUpperCase();
 
     for (let p = 0; p < totalPages; p++) {
       doc.addPage();
+      const pageNum = doc.getNumberOfPages();
 
-      // ── Encabezado de la página ──
-      doc.setFillColor(...COLOR_DARK);
-      doc.rect(0, 0, 210, 24, "F");
-      doc.setFillColor(...COLOR_EMERALD);
-      doc.rect(0, 20, 210, 4, "F");
+      // ── Encabezado de página ──
+      doc.setFillColor(...C_DARK);
+      doc.rect(0, 0, 210, 22, "F");
+      doc.setFillColor(...C_EMERALD);
+      doc.rect(0, 18, 210, 4, "F");
 
-      // Nombre tienda (pequeño, derecha)
+      // Nombre tienda (izquierda, pequeño)
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(160, 200, 185);
+      doc.text(storeName, 15, 9);
+
+      // Titulo de seccion
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(...COLOR_WHITE);
-      doc.text(storeName, 192, 10, { align: "right" });
+      doc.setFontSize(11);
+      doc.setTextColor(...C_WHITE);
+      doc.text(sectionTitle, 105, 14.5, { align: "center" });
 
-      // Título de sección
-      const headerTitle = group.subcatName
-        ? `${group.catName.toUpperCase()}  /  ${group.subcatName.toUpperCase()}`
-        : group.catName.toUpperCase();
+      // Boton "↑ Indice" — clic vuelve a pag 1
+      const btnW = 26;
+      const btnH = 6;
+      const btnX = 210 - btnW - 5;
+      const btnY = 5;
+      doc.setFillColor(...C_EMERALD);
+      doc.roundedRect(btnX, btnY, btnW, btnH, 1.5, 1.5, "F");
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.setTextColor(...COLOR_WHITE);
-      doc.text(headerTitle, 105, 15, { align: "center" });
+      doc.setFontSize(6.5);
+      doc.setTextColor(...C_WHITE);
+      doc.text("^ Indice", btnX + btnW / 2, btnY + 4, { align: "center" });
+      doc.link(btnX, btnY, btnW, btnH, { pageNumber: 1 });
 
+      // ── Productos ──
       const pageProducts = group.products.slice(p * PRODS_PER_PAGE, (p + 1) * PRODS_PER_PAGE);
 
       pageProducts.forEach((prod, idx) => {
@@ -340,103 +382,118 @@ export async function generateCatalogPDF(
         const cardX = MARGIN_X + col * (CARD_W + COL_GAP);
         const cardY = START_Y + row * (CARD_H + ROW_GAP);
 
-        // ── Tarjeta fondo ──
-        doc.setFillColor(...COLOR_WHITE);
-        doc.setDrawColor(...COLOR_BORDER);
-        doc.setLineWidth(0.3);
+        // ── Sombra suave de tarjeta (pequeño rect offset) ──
+        doc.setFillColor(220, 225, 232);
+        doc.roundedRect(cardX + 1.5, cardY + 1.5, CARD_W, CARD_H, 3, 3, "F");
+
+        // ── Tarjeta blanca ──
+        doc.setFillColor(...C_WHITE);
+        doc.setDrawColor(...C_BORDER);
+        doc.setLineWidth(0.25);
         doc.roundedRect(cardX, cardY, CARD_W, CARD_H, 3, 3, "FD");
 
         const imagenes = prod.imagenes || [];
-        const mainUrl = imagenes[0];
-        const mainImg = mainUrl ? loadedImages[mainUrl] : null;
+        const mainUrl  = imagenes[0];
+        const mainImg  = mainUrl ? loadedImages[mainUrl] : null;
 
-        // ── Imagen principal ──
-        const IMG_H = 52;
-        const IMG_W = CARD_W - 4;
+        // ── Fondo de imagen ──
+        doc.setFillColor(...C_LIGHT);
+        doc.roundedRect(cardX + 2, cardY + REL_IMG_Y, IMG_W, IMG_H, 2, 2, "F");
 
-        // Fondo gris suave para la imagen
-        doc.setFillColor(...COLOR_LIGHT);
-        doc.roundedRect(cardX + 2, cardY + 2, IMG_W, IMG_H, 2, 2, "F");
-
+        // ── Imagen principal con ratio correcto ──
         if (mainImg) {
-          try {
-            drawImageFit(doc, mainImg, cardX + 2, cardY + 2, IMG_W, IMG_H);
-          } catch {
-            // Silent
+          try { drawImageFit(doc, mainImg, cardX + 2, cardY + REL_IMG_Y, IMG_W, IMG_H); } catch { /* skip */ }
+        }
+
+        // ── Borde de imagen (sutil, para recortes perfectos) ──
+        doc.setDrawColor(...C_BORDER);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(cardX + 2, cardY + REL_IMG_Y, IMG_W, IMG_H, 2, 2, "S");
+
+        // ── Miniaturas (siempre en REL_MINI_Y, máx 5) ──
+        const extras = imagenes.slice(1, 6);
+        if (extras.length > 0) {
+          const MINI_W  = Math.min(10, (IMG_W - (extras.length - 1) * 2) / extras.length);
+          const totalW  = extras.length * MINI_W + (extras.length - 1) * 2;
+          let mx        = cardX + 2 + (IMG_W - totalW) / 2;
+          const my      = cardY + REL_MINI_Y;
+
+          extras.forEach((url) => {
+            const mi = loadedImages[url];
+            doc.setFillColor(...C_LIGHT);
+            doc.setDrawColor(...C_BORDER);
+            doc.setLineWidth(0.2);
+            doc.roundedRect(mx, my, MINI_W, MINI_H, 1, 1, "FD");
+            if (mi) {
+              try { drawImageFit(doc, mi, mx, my, MINI_W, MINI_H); } catch { /* skip */ }
+              // Borde sobre miniatura
+              doc.setDrawColor(...C_BORDER);
+              doc.roundedRect(mx, my, MINI_W, MINI_H, 1, 1, "S");
+            }
+            mx += MINI_W + 2;
+          });
+
+          // Indicador "+ más fotos" si tiene más de 5
+          if (imagenes.length > 6) {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(5.5);
+            doc.setTextColor(...C_MID);
+            doc.text(`+${imagenes.length - 6} foto(s)`, cardX + CARD_W - 3, cardY + REL_MINI_Y + 7, { align: "right" });
           }
         }
 
-        // ── Galería de imágenes adicionales (miniaturas) ──
-        const extraImgs = imagenes.slice(1, 5); // máx 4 miniaturas
-        const MINI_SIZE = 10;
-        const MINI_GAP = 2;
-        const MINI_Y = cardY + 2 + IMG_H + 2;
-
-        if (extraImgs.length > 0) {
-          const totalMiniW = extraImgs.length * MINI_SIZE + (extraImgs.length - 1) * MINI_GAP;
-          let miniX = cardX + 2 + (IMG_W - totalMiniW) / 2;
-
-          extraImgs.forEach((url) => {
-            const mImg = loadedImages[url];
-            doc.setFillColor(...COLOR_LIGHT);
-            doc.setDrawColor(...COLOR_BORDER);
-            doc.roundedRect(miniX, MINI_Y, MINI_SIZE, MINI_SIZE, 1, 1, "FD");
-            if (mImg) {
-              try {
-                drawImageFit(doc, mImg, miniX, MINI_Y, MINI_SIZE, MINI_SIZE);
-              } catch {
-                // Silent
-              }
-            }
-            miniX += MINI_SIZE + MINI_GAP;
-          });
-        }
-
-        // Separador entre imagen/miniaturas y texto
-        const textStartY = MINI_Y + (extraImgs.length > 0 ? MINI_SIZE + 3 : 3);
-        doc.setDrawColor(...COLOR_BORDER);
+        // ── Linea separadora ──
+        doc.setDrawColor(...C_BORDER);
         doc.setLineWidth(0.2);
-        doc.line(cardX + 3, textStartY - 1, cardX + CARD_W - 3, textStartY - 1);
+        doc.line(cardX + 4, cardY + REL_SEP_Y, cardX + CARD_W - 4, cardY + REL_SEP_Y);
 
-        // ── Nombre del producto ──
+        // ── Nombre del producto (2 lineas max) ──
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(8.5);
-        doc.setTextColor(...COLOR_DARK);
-        const afterName = drawWrappedText(doc, prod.nombre, cardX + 3, textStartY + 1, CARD_W - 6, 4.5, 2);
+        doc.setFontSize(8);
+        doc.setTextColor(...C_DARK);
+        drawText(doc, prod.nombre, cardX + 4, cardY + REL_NAME_Y, CARD_W - 8, NAME_LH, NAME_LINES);
 
-        // ── Descripción ──
-        if (prod.descripcion && prod.descripcion.trim()) {
+        // ── Descripcion (3 lineas max, si existe) ──
+        const desc = (prod.descripcion || "").trim();
+        if (desc) {
           doc.setFont("helvetica", "normal");
-          doc.setFontSize(7);
-          doc.setTextColor(...COLOR_MID);
-          drawWrappedText(doc, prod.descripcion.trim(), cardX + 3, afterName + 1.5, CARD_W - 6, 3.8, 2);
+          doc.setFontSize(6.5);
+          doc.setTextColor(...C_MID);
+          drawText(doc, desc, cardX + 4, cardY + REL_DESC_Y, CARD_W - 8, DESC_LH, DESC_LINES);
         }
 
-        // ── Precio (parte baja de la tarjeta) ──
-        const priceY = cardY + CARD_H - 7;
-
-        // Franja de precio
-        doc.setFillColor(...COLOR_EMERALD);
-        doc.roundedRect(cardX + 2, priceY - 2, CARD_W - 4, 9, 2, 2, "F");
+        // ── Barra de precio (posicion fija) ──
+        doc.setFillColor(...C_EMERALD);
+        doc.roundedRect(cardX + 3, cardY + REL_PRICE_Y, CARD_W - 6, PRICE_H, 2, 2, "F");
 
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(9.5);
-        doc.setTextColor(...COLOR_WHITE);
-        doc.text(`₡ ${prod.precio.toLocaleString("es-CR")}`, cardX + CARD_W / 2, priceY + 4, { align: "center" });
+        doc.setFontSize(9);
+        doc.setTextColor(...C_WHITE);
+        // Usar CRC en lugar de simbolo colón para evitar encoding errors en jsPDF
+        doc.text(
+          `CRC ${prod.precio.toLocaleString("es-CR")}`,
+          cardX + CARD_W / 2,
+          cardY + REL_PRICE_Y + 6.2,
+          { align: "center" }
+        );
       });
 
-      // ── Pie de página ──
-      doc.setFillColor(...COLOR_DARK);
-      doc.rect(0, 282, 210, 15, "F");
+      // ── Pie de pagina ──
+      doc.setFillColor(...C_DARK);
+      doc.rect(0, 281, 210, 16, "F");
+
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(...COLOR_WHITE);
-      doc.text(`${storeName} · ${headerTitle}`, 15, 291);
-      doc.text(`Página ${doc.getNumberOfPages()}`, 192, 291, { align: "right" });
+      doc.setFontSize(7.5);
+      doc.setTextColor(160, 200, 185);
+      doc.text(storeName, 15, 291);
+
+      doc.setTextColor(...C_WHITE);
+      doc.text(sectionTitle, 105, 291, { align: "center" });
+      doc.text(`Pag. ${pageNum}`, 195, 291, { align: "right" });
     }
   });
 
-  // Nombre del archivo usa el nombre real de la tienda
+  // Guardar con nombre de tienda
   const fileName = storeName.replace(/\s+/g, "_").toLowerCase();
   doc.save(`Catalogo_${fileName}.pdf`);
 }
