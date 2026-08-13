@@ -1,9 +1,11 @@
 import { jsPDF } from "jspdf";
+import { getHeaderConfig } from "./configManager";
 
 export interface CatalogProduct {
   id: string;
   nombre: string;
   precio: number;
+  descripcion?: string;
   imagenes: string[];
   categoria_id: string;
   subcategoria_id?: string | null;
@@ -32,7 +34,7 @@ async function loadImgAsDataUrl(url?: string): Promise<LoadedImageData | null> {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
-    const timer = setTimeout(() => resolve(null), 3500);
+    const timer = setTimeout(() => resolve(null), 5000);
 
     img.onload = () => {
       clearTimeout(timer);
@@ -43,28 +45,58 @@ async function loadImgAsDataUrl(url?: string): Promise<LoadedImageData | null> {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          resolve(null);
-          return;
-        }
+        if (!ctx) { resolve(null); return; }
         ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
         resolve({ dataUrl, format: "JPEG", width, height });
-      } catch (err) {
-        console.warn("Error convirtiendo imagen a dataUrl:", err);
+      } catch {
         resolve(null);
       }
     };
-
-    img.onerror = () => {
-      clearTimeout(timer);
-      resolve(null);
-    };
-
+    img.onerror = () => { clearTimeout(timer); resolve(null); };
     img.src = url;
   });
+}
+
+/** Dibuja texto con salto de línea automático y retorna la Y final */
+function drawWrappedText(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  maxLines = 3
+): number {
+  const lines = doc.splitTextToSize(text, maxWidth);
+  const clipped = lines.slice(0, maxLines);
+  if (lines.length > maxLines) {
+    const last = clipped[maxLines - 1] as string;
+    clipped[maxLines - 1] = last.length > 3 ? last.slice(0, -3) + "..." : last + "...";
+  }
+  clipped.forEach((line: string, i: number) => {
+    doc.text(line, x, y + i * lineHeight);
+  });
+  return y + clipped.length * lineHeight;
+}
+
+/** Dibuja una imagen con ratio correcto centrada en el box */
+function drawImageFit(
+  doc: jsPDF,
+  imgData: LoadedImageData,
+  boxX: number,
+  boxY: number,
+  boxW: number,
+  boxH: number
+) {
+  const ratio = Math.min(boxW / imgData.width, boxH / imgData.height);
+  const fitW = imgData.width * ratio;
+  const fitH = imgData.height * ratio;
+  const imgX = boxX + (boxW - fitW) / 2;
+  const imgY = boxY + (boxH - fitH) / 2;
+  doc.addImage(imgData.dataUrl, imgData.format, imgX, imgY, fitW, fitH);
 }
 
 export async function generateCatalogPDF(
@@ -73,61 +105,48 @@ export async function generateCatalogPDF(
   products: CatalogProduct[],
   onProgress?: (progress: number) => void
 ) {
-  const doc = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
-  });
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-  const PRODS_PER_PAGE = 8;
+  // Nombre de la tienda desde configuración
+  const headerConfig = await getHeaderConfig();
+  const storeName = `${headerConfig.titulo_principal} ${headerConfig.titulo_destacado}`.trim().toUpperCase() || "TIENDA";
+  const storeTagline = headerConfig.descripcion || "Catálogo de Productos";
 
-  // Organizar categorías, subcategorías y productos
-  const subcatMap = new Map<string, CatalogSubcategory>();
-  subcategories.forEach((s) => subcatMap.set(s.id, s));
+  // Emerald palette
+  const COLOR_EMERALD: [number, number, number] = [16, 185, 129];
+  const COLOR_DARK: [number, number, number] = [15, 23, 42];
+  const COLOR_MID: [number, number, number] = [71, 85, 105];
+  const COLOR_LIGHT: [number, number, number] = [241, 245, 249];
+  const COLOR_BORDER: [number, number, number] = [226, 232, 240];
+  const COLOR_WHITE: [number, number, number] = [255, 255, 255];
 
-  // Agrupar por categoría y subcategoría
-  // Clave de grupo: `${catId}_${subcatId || 'general'}`
+  // PRODUCTOS POR PÁGINA: 2 columnas, 2 filas = 4 (con descripción e imágenes múltiples)
+  const PRODS_PER_PAGE = 4;
+
+  // Agrupar productos por categoría y subcategoría
   interface Group {
-    key: string;
     catName: string;
     subcatName?: string;
     products: CatalogProduct[];
   }
-
   const groups: Group[] = [];
-
   categories.forEach((cat) => {
     const catProducts = products.filter((p) => p.categoria_id === cat.id);
     if (catProducts.length === 0) return;
-
-    // Obtener subcategorías asociadas que tengan productos
     const catSubcats = subcategories.filter((s) => s.categoria_id === cat.id);
     const usedSubcatIds = new Set<string>();
 
     catSubcats.forEach((subcat) => {
-      const subProducts = catProducts.filter((p) => p.subcategoria_id === subcat.id);
-      if (subProducts.length > 0) {
+      const subProds = catProducts.filter((p) => p.subcategoria_id === subcat.id);
+      if (subProds.length > 0) {
         usedSubcatIds.add(subcat.id);
-        groups.push({
-          key: `${cat.id}_${subcat.id}`,
-          catName: cat.nombre,
-          subcatName: subcat.nombre,
-          products: subProducts,
-        });
+        groups.push({ catName: cat.nombre, subcatName: subcat.nombre, products: subProds });
       }
     });
 
-    // Productos sin subcategoría (General)
-    const sinSubcatProds = catProducts.filter(
-      (p) => !p.subcategoria_id || !usedSubcatIds.has(p.subcategoria_id)
-    );
-    if (sinSubcatProds.length > 0) {
-      groups.push({
-        key: `${cat.id}_general`,
-        catName: cat.nombre,
-        subcatName: catSubcats.length > 0 ? "General / Varios" : undefined,
-        products: sinSubcatProds,
-      });
+    const sinSubcat = catProducts.filter((p) => !p.subcategoria_id || !usedSubcatIds.has(p.subcategoria_id));
+    if (sinSubcat.length > 0) {
+      groups.push({ catName: cat.nombre, subcatName: catSubcats.length > 0 ? "General" : undefined, products: sinSubcat });
     }
   });
 
@@ -136,187 +155,288 @@ export async function generateCatalogPDF(
     return;
   }
 
-  // Precalculo de páginas para el Índice interactivo
-  let tempPageCounter = 2; // El catálogo comienza en pág. 2 (Pág. 1 es Portada + Índice)
-  const indexEntries: { label: string; isHeader: boolean; startPage: number }[] = [];
-
-  let currentCatHeader = "";
+  // Pre-calcular páginas para el índice interactivo
+  let tempPage = 2; // Página 1 = Portada+Índice
+  const indexEntries: { label: string; isHeader: boolean; page: number }[] = [];
+  let prevCatName = "";
   groups.forEach((g) => {
-    if (g.catName !== currentCatHeader) {
-      currentCatHeader = g.catName;
-      indexEntries.push({ label: g.catName, isHeader: true, startPage: tempPageCounter });
+    if (g.catName !== prevCatName) {
+      prevCatName = g.catName;
+      indexEntries.push({ label: g.catName, isHeader: true, page: tempPage });
     }
     if (g.subcatName) {
-      indexEntries.push({ label: `  • ${g.subcatName}`, isHeader: false, startPage: tempPageCounter });
+      indexEntries.push({ label: `  • ${g.subcatName}`, isHeader: false, page: tempPage });
     }
-
-    const pagesNeeded = Math.ceil(g.products.length / PRODS_PER_PAGE);
-    tempPageCounter += pagesNeeded;
+    tempPage += Math.ceil(g.products.length / PRODS_PER_PAGE);
   });
 
-  // PÁGINA 1: Portada e Índice
-  doc.setFillColor(16, 185, 129); // Emerald-600
-  doc.rect(0, 0, 210, 40, "F");
+  // ─────────────────────────────────────────────────────
+  // PÁGINA 1: Portada + Índice Interactivo
+  // ─────────────────────────────────────────────────────
 
-  doc.setTextColor(255, 255, 255);
+  // Banner superior
+  doc.setFillColor(...COLOR_DARK);
+  doc.rect(0, 0, 210, 55, "F");
+
+  // Franja verde decorativa
+  doc.setFillColor(...COLOR_EMERALD);
+  doc.rect(0, 47, 210, 8, "F");
+
+  // Logo / nombre de tienda
+  doc.setTextColor(...COLOR_WHITE);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(26);
-  doc.text("CATÁLOGO DE PRODUCTOS", 105, 22, { align: "center" });
+  doc.setFontSize(32);
+  doc.text(storeName, 105, 26, { align: "center" });
 
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "normal");
-  doc.text("Tienda Verónica", 105, 30, { align: "center" });
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "italic");
+  doc.setTextColor(200, 240, 225);
+  const taglineLines = doc.splitTextToSize(storeTagline, 170);
+  doc.text(taglineLines.slice(0, 2), 105, 36, { align: "center" });
 
-  doc.setTextColor(30, 41, 59);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("Índice Interactivo (Toca una categoría para ir a la página)", 20, 54);
-
-  let indexY = 65;
   doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...COLOR_WHITE);
+  doc.text("CATÁLOGO DE PRODUCTOS", 105, 51, { align: "center" });
 
+  // Fecha
+  const fecha = new Date().toLocaleDateString("es-CR", { day: "2-digit", month: "long", year: "numeric" });
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...COLOR_MID);
+  doc.text(`Generado el ${fecha}`, 105, 63, { align: "center" });
+
+  // Encabezado del índice
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...COLOR_DARK);
+  doc.text("ÍNDICE DE CATEGORÍAS", 18, 76);
+
+  // Línea verde
+  doc.setDrawColor(...COLOR_EMERALD);
+  doc.setLineWidth(0.8);
+  doc.line(18, 78, 192, 78);
+  doc.setLineWidth(0.2);
+
+  doc.setFontSize(8.5);
+  doc.setFont("helvetica", "italic");
+  doc.setTextColor(...COLOR_MID);
+  doc.text("Toca o haz clic en una categoría para ir directamente a esa sección.", 18, 84);
+
+  let indexY = 92;
   indexEntries.forEach((entry) => {
-    if (indexY > 270) return; // Evitar desbordamiento en índice
+    if (indexY > 270) return;
 
     if (entry.isHeader) {
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(16, 185, 129); // Emerald
-      doc.text(entry.label, 20, indexY);
-      
-      doc.setTextColor(30, 41, 59);
-      doc.setFont("helvetica", "bold");
-      doc.text(`Pág. ${entry.startPage}`, 185, indexY, { align: "right" });
+      // Fondo del encabezado de categoría
+      doc.setFillColor(...COLOR_LIGHT);
+      doc.roundedRect(18, indexY - 4, 174, 9, 1, 1, "F");
 
-      // ENLACE INTERACTIVO EN EL PDF (Tocar salta a la página)
-      doc.link(20, indexY - 4, 165, 6, { pageNumber: entry.startPage });
-      indexY += 8;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10.5);
+      doc.setTextColor(...COLOR_EMERALD);
+      doc.text(entry.label.toUpperCase(), 22, indexY + 2.5);
+
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...COLOR_MID);
+      doc.text(`Pág. ${entry.page}`, 188, indexY + 2.5, { align: "right" });
+
+      doc.link(18, indexY - 4, 174, 9, { pageNumber: entry.page });
+      indexY += 12;
     } else {
       doc.setFont("helvetica", "normal");
-      doc.setTextColor(51, 65, 85);
-      doc.text(entry.label, 24, indexY);
+      doc.setFontSize(9.5);
+      doc.setTextColor(...COLOR_DARK);
+      doc.text(entry.label, 26, indexY);
 
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Pág. ${entry.startPage}`, 185, indexY, { align: "right" });
+      doc.setTextColor(...COLOR_MID);
+      doc.text(`Pág. ${entry.page}`, 188, indexY, { align: "right" });
 
-      // ENLACE INTERACTIVO EN EL PDF
-      doc.link(24, indexY - 4, 161, 6, { pageNumber: entry.startPage });
-      indexY += 7;
+      // Puntos entre nombre y página
+      doc.setDrawColor(...COLOR_BORDER);
+      doc.setLineDashPattern([1, 2], 0);
+      const labelWidth = doc.getTextWidth(entry.label) + 26;
+      doc.line(labelWidth + 4, indexY - 0.5, 178, indexY - 0.5);
+      doc.setLineDashPattern([], 0);
+
+      doc.link(26, indexY - 4, 162, 7, { pageNumber: entry.page });
+      indexY += 9;
     }
   });
 
-  doc.setTextColor(150, 150, 150);
+  // Pie de portada
+  doc.setFillColor(...COLOR_DARK);
+  doc.rect(0, 282, 210, 15, "F");
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text("Página 1", 105, 287, { align: "center" });
+  doc.setFontSize(8);
+  doc.setTextColor(...COLOR_WHITE);
+  doc.text(`${storeName} · Precios en CRC ₡ · Envío a coordinar`, 105, 291, { align: "center" });
 
-  // Cargar imágenes de productos manteniendo aspecto natural
-  const allImagesToLoad = products.map((p) => p.imagenes[0]).filter(Boolean);
+  // ─────────────────────────────────────────────────────
+  // CARGA DE IMÁGENES: todas las imágenes de todos los productos
+  // ─────────────────────────────────────────────────────
+  const allUrls = new Set<string>();
+  products.forEach((p) => {
+    (p.imagenes || []).forEach((url) => { if (url) allUrls.add(url); });
+  });
+  const allUrlsArray = Array.from(allUrls);
   const loadedImages: Record<string, LoadedImageData | null> = {};
 
   let loadedCount = 0;
-  const chunkSize = 6;
-  for (let i = 0; i < allImagesToLoad.length; i += chunkSize) {
-    const chunk = allImagesToLoad.slice(i, i + chunkSize);
+  const CHUNK = 5;
+  for (let i = 0; i < allUrlsArray.length; i += CHUNK) {
+    const chunk = allUrlsArray.slice(i, i + CHUNK);
     const results = await Promise.all(chunk.map((url) => loadImgAsDataUrl(url)));
-    chunk.forEach((url, idx) => {
-      if (url) loadedImages[url] = results[idx];
-    });
+    chunk.forEach((url, idx) => { loadedImages[url] = results[idx]; });
     loadedCount += chunk.length;
-    if (onProgress) {
-      onProgress(Math.floor((loadedCount / allImagesToLoad.length) * 100));
-    }
+    onProgress?.(Math.floor((loadedCount / allUrlsArray.length) * 100));
   }
 
-  // Renderizar Páginas de Productos
-  let currentPage = 1;
+  // ─────────────────────────────────────────────────────
+  // PÁGINAS DE PRODUCTOS
+  // Layout: 2 columnas × 2 filas = 4 productos por página
+  // Cada tarjeta: imagen principal grande + galería de miniaturas + nombre + descripción + precio
+  // ─────────────────────────────────────────────────────
+  const CARD_W = 86;
+  const CARD_H = 115;
+  const COL_GAP = 8;
+  const ROW_GAP = 6;
+  const MARGIN_X = 15;
+  const START_Y = 30;
 
   groups.forEach((group) => {
     const totalPages = Math.ceil(group.products.length / PRODS_PER_PAGE);
 
     for (let p = 0; p < totalPages; p++) {
       doc.addPage();
-      currentPage++;
 
-      // Encabezado de la página
-      doc.setFillColor(241, 245, 249);
-      doc.rect(0, 0, 210, 25, "F");
+      // ── Encabezado de la página ──
+      doc.setFillColor(...COLOR_DARK);
+      doc.rect(0, 0, 210, 24, "F");
+      doc.setFillColor(...COLOR_EMERALD);
+      doc.rect(0, 20, 210, 4, "F");
 
-      doc.setTextColor(16, 185, 129); // Emerald
+      // Nombre tienda (pequeño, derecha)
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
+      doc.setFontSize(8);
+      doc.setTextColor(...COLOR_WHITE);
+      doc.text(storeName, 192, 10, { align: "right" });
 
+      // Título de sección
       const headerTitle = group.subcatName
-        ? `${group.catName.toUpperCase()} — ${group.subcatName.toUpperCase()}`
+        ? `${group.catName.toUpperCase()}  /  ${group.subcatName.toUpperCase()}`
         : group.catName.toUpperCase();
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(...COLOR_WHITE);
+      doc.text(headerTitle, 105, 15, { align: "center" });
 
-      doc.text(headerTitle, 105, 16, { align: "center" });
-
-      const startIndex = p * PRODS_PER_PAGE;
-      const pageProducts = group.products.slice(startIndex, startIndex + PRODS_PER_PAGE);
-
-      const marginX = 18;
-      const startY = 32;
-      const colWidth = 84;
-      const rowHeight = 60;
+      const pageProducts = group.products.slice(p * PRODS_PER_PAGE, (p + 1) * PRODS_PER_PAGE);
 
       pageProducts.forEach((prod, idx) => {
         const col = idx % 2;
         const row = Math.floor(idx / 2);
 
-        const x = marginX + col * 90;
-        const y = startY + row * rowHeight;
+        const cardX = MARGIN_X + col * (CARD_W + COL_GAP);
+        const cardY = START_Y + row * (CARD_H + ROW_GAP);
 
-        // Tarjeta de producto
-        doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(x, y, colWidth, rowHeight - 4, 2, 2, "S");
+        // ── Tarjeta fondo ──
+        doc.setFillColor(...COLOR_WHITE);
+        doc.setDrawColor(...COLOR_BORDER);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(cardX, cardY, CARD_W, CARD_H, 3, 3, "FD");
 
-        const imgUrl = prod.imagenes[0];
-        const imgData = imgUrl ? loadedImages[imgUrl] : null;
+        const imagenes = prod.imagenes || [];
+        const mainUrl = imagenes[0];
+        const mainImg = mainUrl ? loadedImages[mainUrl] : null;
 
-        // Contenedor de la imagen (80mm ancho x 36mm alto)
-        const maxW = colWidth - 4; // 80mm
-        const maxH = 36; // 36mm
+        // ── Imagen principal ──
+        const IMG_H = 52;
+        const IMG_W = CARD_W - 4;
 
-        if (imgData && imgData.width && imgData.height) {
+        // Fondo gris suave para la imagen
+        doc.setFillColor(...COLOR_LIGHT);
+        doc.roundedRect(cardX + 2, cardY + 2, IMG_W, IMG_H, 2, 2, "F");
+
+        if (mainImg) {
           try {
-            // CALCULAR ASPECT RATIO REAL SIN DISTORSIÓN
-            const ratio = Math.min(maxW / imgData.width, maxH / imgData.height);
-            const fitW = imgData.width * ratio;
-            const fitH = imgData.height * ratio;
-            const imgX = x + 2 + (maxW - fitW) / 2;
-            const imgY = y + 2 + (maxH - fitH) / 2;
-
-            doc.addImage(imgData.dataUrl, imgData.format, imgX, imgY, fitW, fitH);
-          } catch (e) {
-            doc.setFillColor(241, 245, 249);
-            doc.rect(x + 2, y + 2, maxW, maxH, "F");
+            drawImageFit(doc, mainImg, cardX + 2, cardY + 2, IMG_W, IMG_H);
+          } catch {
+            // Silent
           }
-        } else {
-          doc.setFillColor(241, 245, 249);
-          doc.rect(x + 2, y + 2, maxW, maxH, "F");
         }
 
-        // Nombre del producto
-        doc.setTextColor(30, 41, 59);
+        // ── Galería de imágenes adicionales (miniaturas) ──
+        const extraImgs = imagenes.slice(1, 5); // máx 4 miniaturas
+        const MINI_SIZE = 10;
+        const MINI_GAP = 2;
+        const MINI_Y = cardY + 2 + IMG_H + 2;
+
+        if (extraImgs.length > 0) {
+          const totalMiniW = extraImgs.length * MINI_SIZE + (extraImgs.length - 1) * MINI_GAP;
+          let miniX = cardX + 2 + (IMG_W - totalMiniW) / 2;
+
+          extraImgs.forEach((url) => {
+            const mImg = loadedImages[url];
+            doc.setFillColor(...COLOR_LIGHT);
+            doc.setDrawColor(...COLOR_BORDER);
+            doc.roundedRect(miniX, MINI_Y, MINI_SIZE, MINI_SIZE, 1, 1, "FD");
+            if (mImg) {
+              try {
+                drawImageFit(doc, mImg, miniX, MINI_Y, MINI_SIZE, MINI_SIZE);
+              } catch {
+                // Silent
+              }
+            }
+            miniX += MINI_SIZE + MINI_GAP;
+          });
+        }
+
+        // Separador entre imagen/miniaturas y texto
+        const textStartY = MINI_Y + (extraImgs.length > 0 ? MINI_SIZE + 3 : 3);
+        doc.setDrawColor(...COLOR_BORDER);
+        doc.setLineWidth(0.2);
+        doc.line(cardX + 3, textStartY - 1, cardX + CARD_W - 3, textStartY - 1);
+
+        // ── Nombre del producto ──
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(...COLOR_DARK);
+        const afterName = drawWrappedText(doc, prod.nombre, cardX + 3, textStartY + 1, CARD_W - 6, 4.5, 2);
+
+        // ── Descripción ──
+        if (prod.descripcion && prod.descripcion.trim()) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7);
+          doc.setTextColor(...COLOR_MID);
+          drawWrappedText(doc, prod.descripcion.trim(), cardX + 3, afterName + 1.5, CARD_W - 6, 3.8, 2);
+        }
+
+        // ── Precio (parte baja de la tarjeta) ──
+        const priceY = cardY + CARD_H - 7;
+
+        // Franja de precio
+        doc.setFillColor(...COLOR_EMERALD);
+        doc.roundedRect(cardX + 2, priceY - 2, CARD_W - 4, 9, 2, 2, "F");
+
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9.5);
-        const truncName = doc.splitTextToSize(prod.nombre, colWidth - 6);
-        doc.text(truncName, x + 3, y + 43);
-
-        // Precio del producto
-        doc.setTextColor(16, 185, 129);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10.5);
-        doc.text(`CRC ${prod.precio.toLocaleString("es-CR")}`, x + 3, y + 51);
+        doc.setTextColor(...COLOR_WHITE);
+        doc.text(`₡ ${prod.precio.toLocaleString("es-CR")}`, cardX + CARD_W / 2, priceY + 4, { align: "center" });
       });
 
-      // Pie de página
-      doc.setTextColor(150, 150, 150);
+      // ── Pie de página ──
+      doc.setFillColor(...COLOR_DARK);
+      doc.rect(0, 282, 210, 15, "F");
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(`Página ${currentPage}`, 105, 287, { align: "center" });
+      doc.setFontSize(8);
+      doc.setTextColor(...COLOR_WHITE);
+      doc.text(`${storeName} · ${headerTitle}`, 15, 291);
+      doc.text(`Página ${doc.getNumberOfPages()}`, 192, 291, { align: "right" });
     }
   });
 
-  doc.save("Catalogo_Tienda_Veronica.pdf");
+  // Nombre del archivo usa el nombre real de la tienda
+  const fileName = storeName.replace(/\s+/g, "_").toLowerCase();
+  doc.save(`Catalogo_${fileName}.pdf`);
 }
