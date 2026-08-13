@@ -288,13 +288,24 @@ export default function CatalogViewer({
                           <p className="line-clamp-2 w-full text-center text-xs font-semibold text-stone-800 group-hover:text-emerald-700 transition-colors">
                             {prod.nombre}
                           </p>
-                          {/* Descripción con formato HTML */}
-                          {(prod as any).descripcion && (
-                            <div
-                              className="w-full text-left text-[10px] leading-snug text-stone-500 overflow-hidden max-h-[48px] [&_ul]:list-disc [&_ul]:ml-3 [&_ul]:my-0.5 [&_ol]:list-decimal [&_ol]:ml-3 [&_li]:leading-snug [&_li]:my-0 [&_p]:my-0 [&_b]:font-bold [&_strong]:font-bold [&_em]:italic"
-                              dangerouslySetInnerHTML={{ __html: (prod as any).descripcion }}
-                            />
-                          )}
+                          {/* Descripción: HTML → texto con viñetas */}
+                          {(prod as any).descripcion && (() => {
+                            const raw = (prod as any).descripcion as string;
+                            const text = raw
+                              .replace(/<li[^>]*>/gi, "\n• ")
+                              .replace(/<\/li>/gi, "")
+                              .replace(/<\/p>/gi, "\n")
+                              .replace(/<br\s*\/?>/gi, "\n")
+                              .replace(/<[^>]+>/g, "")
+                              .replace(/&nbsp;/gi, " ")
+                              .replace(/\n{3,}/g, "\n\n")
+                              .trim();
+                            return (
+                              <p className="w-full text-left text-[10px] leading-snug text-stone-500 overflow-hidden max-h-[52px] whitespace-pre-line">
+                                {text}
+                              </p>
+                            );
+                          })()}
                           {prod.precioOriginal ? (
                             <div className="flex flex-col items-center leading-tight">
                               <span className="text-[10px] text-stone-400 line-through">

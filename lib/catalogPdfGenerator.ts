@@ -83,32 +83,48 @@ function drawImageFit(
 }
 
 /**
- * Limpia el texto para jsPDF/Helvetica:
- * elimina emojis y cualquier caracter fuera del rango Latin-1 (U+0000–U+00FF)
- * que causaria caracteres basura en el PDF.
+ * Convierte HTML de descripcion en texto plano con vinietas para jsPDF/Helvetica.
+ * Conserva caracteres Latin-1 (incluye español: áéíóúñ).
  */
 function pdfSafe(text: string): string {
   if (!text) return "";
-  
-  // 1. Reemplazar etiquetas de lista con saltos y guiones
-  let parsed = text
-    .replace(/<li>/gi, "\n- ")
-    .replace(/<\/li>/gi, "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<[^>]*>?/gm, "") // Remover cualquier otra etiqueta HTML
-    .replace(/&nbsp;/g, " ");
-    
-  // 2. Limpiar caracteres inválidos para jsPDF Helvetica y colapsar espacios (no saltos de línea)
+
+  // 1. Convertir estructuras HTML a texto con saltos de linea
+  const parsed = text
+    .replace(/<li[^>]*>/gi, "\n- ")   // cada <li> comienza en nueva linea con guion
+    .replace(/<\/li>/gi, "")           // cerrar li no necesita nada extra
+    .replace(/<\/p>/gi, "\n")          // parrafos terminan en salto
+    .replace(/<br\s*\/?>/gi, "\n")    // saltos de linea explícitos
+    .replace(/<[^>]+>/gm, "")         // eliminar TODAS las demas etiquetas
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+
+  // 2. Filtrar solo caracteres imprimibles Latin-1 (U+0020-U+00FF) + newlines
+  //    Nota: acentos espanoles (á é í ó ú ñ ü) estan en U+00C0-U+00FF
   return parsed
-    .replace(/[^\u0000-\u00FF\n\-]/g, "") // Mantener saltos de linea y guiones
-    .replace(/[ \t]+/g, " ") // Colapsar multiples espacios y tabs
-    .replace(/\n\s*\n+/g, "\n") // Colapsar multiples saltos de linea
+    .split("")
+    .map((ch) => {
+      const code = ch.charCodeAt(0);
+      if (ch === "\n") return "\n";
+      if (code >= 0x20 && code <= 0x00FF) return ch;
+      return ""; // eliminar emojis y caracteres fuera de Latin-1
+    })
+    .join("")
+    .replace(/[ \t]+/g, " ")         // colapsar espacios/tabs
+    .replace(/\n[ \t]+/g, "\n")      // limpiar espacios al inicio de linea
+    .replace(/\n{3,}/g, "\n\n")      // max 2 saltos consecutivos
     .trim();
 }
 
 /**
  * Dibuja texto (ya sanitizado) limitado a maxLines.
+ * Retorna la Y donde termino el ultimo renglon.
+ */
+/**
+ * Dibuja texto multilínea en el PDF.
+ * Acepta texto ya procesado por pdfSafe (con \n como separadores de parrafo/vineta).
  * Retorna la Y donde termino el ultimo renglon.
  */
 function drawText(
@@ -120,21 +136,28 @@ function drawText(
   lineHeight: number,
   maxLines: number
 ): number {
-  if (!text) return y;
-  
-  // Split by actual newlines first (from HTML conversion)
-  const paragraphs = text.split("\n").filter((l) => l.trim() !== "");
-  
-  const allLines: string[] = [];
-  for (const para of paragraphs) {
-    const wrapped = doc.splitTextToSize(para.trim(), maxWidth) as string[];
-    allLines.push(...wrapped);
-    if (allLines.length >= maxLines) break;
+  if (!text || !text.trim()) return y;
+
+  // Dividir en lineas logicas (parrafos / vinietas) por los \n
+  const logicalLines = text.split("\n").filter((l) => l.trim() !== "");
+
+  const renderLines: string[] = [];
+  for (const line of logicalLines) {
+    // Word-wrap cada linea logica segun el ancho disponible
+    const wrapped = doc.splitTextToSize(line.trim(), maxWidth) as string[];
+    for (const wl of wrapped) {
+      renderLines.push(wl);
+      if (renderLines.length >= maxLines) break;
+    }
+    if (renderLines.length >= maxLines) break;
   }
-  
-  const lines = allLines.slice(0, maxLines);
-  lines.forEach((line, i) => doc.text(line, x, y + i * lineHeight));
-  return y + lines.length * lineHeight;
+
+  const finalLines = renderLines.slice(0, maxLines);
+  finalLines.forEach((line, i) => {
+    doc.text(line, x, y + i * lineHeight);
+  });
+
+  return y + finalLines.length * lineHeight;
 }
 
 // ─────────────────────────────────────────────────────
