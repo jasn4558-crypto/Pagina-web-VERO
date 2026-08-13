@@ -84,10 +84,46 @@ export default function AdminPage() {
   const [precio, setPrecio] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
   const [subcategoriaId, setSubcategoriaId] = useState("");
+  const [imagenesExistentes, setImagenesExistentes] = useState<string[]>([]);
   const [imagenes, setImagenes] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  // Control de orden de imágenes existentes
+  const setAsPrincipal = (index: number) => {
+    setImagenesExistentes((prev) => {
+      const copy = [...prev];
+      const [item] = copy.splice(index, 1);
+      return [item, ...copy];
+    });
+  };
+
+  const moveLeft = (index: number) => {
+    if (index === 0) return;
+    setImagenesExistentes((prev) => {
+      const copy = [...prev];
+      const temp = copy[index - 1];
+      copy[index - 1] = copy[index];
+      copy[index] = temp;
+      return copy;
+    });
+  };
+
+  const moveRight = (index: number) => {
+    setImagenesExistentes((prev) => {
+      if (index >= prev.length - 1) return prev;
+      const copy = [...prev];
+      const temp = copy[index + 1];
+      copy[index + 1] = copy[index];
+      copy[index] = temp;
+      return copy;
+    });
+  };
+
+  const removeExistingImage = (index: number) => {
+    setImagenesExistentes((prev) => prev.filter((_, i) => i !== index));
+  };
 
   // Categorías & Subcategorías
   const [nuevaCategoria, setNuevaCategoria] = useState("");
@@ -248,6 +284,7 @@ export default function AdminPage() {
     setPrecio("");
     setCategoriaId("");
     setSubcategoriaId("");
+    setImagenesExistentes([]);
     setImagenes([]);
     setEditandoId(null);
   };
@@ -261,10 +298,6 @@ export default function AdminPage() {
       setError("Por favor completa nombre, descripción y precio.");
       return;
     }
-    if (!editandoId && imagenes.length === 0) {
-      setError("Selecciona al menos una imagen.");
-      return;
-    }
 
     const precioNum = Number(precio);
     if (isNaN(precioNum) || precioNum <= 0) {
@@ -274,7 +307,7 @@ export default function AdminPage() {
 
     setIsSubmitting(true);
     try {
-      let urlsImagenes: string[] = [];
+      let urlsNuevasImagenes: string[] = [];
 
       // Subir nuevas imágenes si hay
       if (imagenes.length > 0) {
@@ -291,8 +324,17 @@ export default function AdminPage() {
           const { data: publicUrlData } = supabase.storage
             .from("tienda-archivos")
             .getPublicUrl(filePath);
-          urlsImagenes.push(publicUrlData.publicUrl);
+          urlsNuevasImagenes.push(publicUrlData.publicUrl);
         }
+      }
+
+      // Combinar imágenes conservadas/reordenadas + nuevas imágenes subidas
+      const finalImagenes = [...imagenesExistentes, ...urlsNuevasImagenes];
+
+      if (finalImagenes.length === 0) {
+        setError("El producto debe conservar o incluir al menos una imagen.");
+        setIsSubmitting(false);
+        return;
       }
 
       if (editandoId) {
@@ -305,7 +347,7 @@ export default function AdminPage() {
             precio: precioNum,
             categoria_id: categoriaId || null,
             subcategoria_id: subcategoriaId || null,
-            ...(urlsImagenes.length > 0 ? { imagenes: urlsImagenes } : {}),
+            imagenes: finalImagenes,
           })
           .eq("id", editandoId);
         if (updateError) throw updateError;
@@ -317,7 +359,7 @@ export default function AdminPage() {
           precio: precioNum,
           categoria_id: categoriaId || null,
           subcategoria_id: subcategoriaId || null,
-          imagenes: urlsImagenes,
+          imagenes: finalImagenes,
           activo: true,
         });
         if (insertError) throw insertError;
@@ -342,6 +384,7 @@ export default function AdminPage() {
     setPrecio(String(producto.precio));
     setCategoriaId(producto.categoria_id ?? "");
     setSubcategoriaId(producto.subcategoria_id ?? "");
+    setImagenesExistentes(Array.isArray(producto.imagenes) ? [...producto.imagenes] : []);
     setImagenes([]);
     setError("");
     setSuccess(false);
@@ -647,9 +690,93 @@ export default function AdminPage() {
                 </select>
               </div>
 
+              {/* IMÁGENES GUARDADAS ACTUALES */}
+              {imagenesExistentes.length > 0 && (
+                <div className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-stone-700">
+                      Imágenes actuales ({imagenesExistentes.length})
+                    </span>
+                    <span className="text-[11px] font-medium text-stone-500">
+                      La 1ª es la <strong className="text-emerald-700 font-bold">Principal</strong>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-2">
+                    {imagenesExistentes.map((imgUrl, idx) => (
+                      <div
+                        key={idx}
+                        className={`relative group shrink-0 flex flex-col items-center rounded-xl border-2 bg-white p-1.5 shadow-sm transition-all ${
+                          idx === 0 ? "border-emerald-600 ring-2 ring-emerald-600/20" : "border-stone-200"
+                        }`}
+                      >
+                        {/* Badge Principal u Orden */}
+                        {idx === 0 ? (
+                          <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm whitespace-nowrap">
+                            ★ Principal
+                          </span>
+                        ) : (
+                          <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 rounded-full bg-stone-700 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
+                            #{idx + 1}
+                          </span>
+                        )}
+
+                        {/* Thumbnail */}
+                        <div className="h-20 w-20 overflow-hidden rounded-lg bg-stone-100 mt-1">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={imgUrl} alt="" className="h-full w-full object-cover" />
+                        </div>
+
+                        {/* Botones de control */}
+                        <div className="mt-2 flex items-center justify-center gap-1">
+                          {idx > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setAsPrincipal(idx)}
+                              className="rounded-lg bg-emerald-50 px-1.5 py-1 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                              title="Hacer imagen principal"
+                            >
+                              ★
+                            </button>
+                          )}
+                          {idx > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => moveLeft(idx)}
+                              className="rounded-lg bg-stone-100 px-1.5 py-1 text-[10px] font-bold text-stone-700 hover:bg-stone-200"
+                              title="Mover a la izquierda"
+                            >
+                              ←
+                            </button>
+                          )}
+                          {idx < imagenesExistentes.length - 1 && (
+                            <button
+                              type="button"
+                              onClick={() => moveRight(idx)}
+                              className="rounded-lg bg-stone-100 px-1.5 py-1 text-[10px] font-bold text-stone-700 hover:bg-stone-200"
+                              title="Mover a la derecha"
+                            >
+                              →
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeExistingImage(idx)}
+                            className="rounded-lg bg-rose-50 px-1.5 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-100 border border-rose-200"
+                            title="Eliminar esta foto"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col gap-2">
                 <label htmlFor="imagenes" className="text-sm font-medium text-stone-700">
-                  Imágenes (puedes seleccionar varias)
+                  {imagenesExistentes.length > 0 ? "Agregar más imágenes (opcional)" : "Imágenes del producto (puedes seleccionar varias)"}
                 </label>
                 <div className="flex items-center gap-3 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-3 py-3">
                   <ImageIcon className="h-5 w-5 shrink-0 text-stone-400" />
@@ -665,7 +792,7 @@ export default function AdminPage() {
                 {imagenes.length > 0 && (
                   <div className="flex flex-col gap-2 mt-1">
                     <p className="text-xs font-semibold text-stone-600">
-                      {imagenes.length} imagen(es) seleccionada(s) — Toca "Editar" para retocar antes de publicar:
+                      {imagenes.length} nueva(s) imagen(es) seleccionada(s) — Toca "Editar" para retocar antes de publicar:
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {imagenes.map((file, idx) => (
@@ -686,11 +813,6 @@ export default function AdminPage() {
                       ))}
                     </div>
                   </div>
-                )}
-                {editandoId && (
-                  <p className="text-xs text-stone-400">
-                    Deja vacío para conservar las imágenes actuales.
-                  </p>
                 )}
               </div>
 
