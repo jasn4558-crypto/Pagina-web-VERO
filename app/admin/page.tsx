@@ -24,7 +24,9 @@ import {
   ZoomIn,
   ToggleLeft,
   ToggleRight,
+  Clipboard,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { getHeaderConfig, saveHeaderConfig, HeaderConfig } from "@/lib/configManager";
 import { generateOrderPDF } from "@/lib/pdfGenerator";
@@ -778,6 +780,41 @@ export default function AdminPage() {
                 <label htmlFor="imagenes" className="text-sm font-medium text-stone-700">
                   {imagenesExistentes.length > 0 ? "Agregar más imágenes (opcional)" : "Imágenes del producto (puedes seleccionar varias)"}
                 </label>
+
+                {/* Botón: Pegar desde portapapeles */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      if (!navigator.clipboard?.read) {
+                        toast.error("Usa Ctrl+V en el editor de imagen para pegar desde el portapapeles.");
+                        return;
+                      }
+                      const clipItems = await navigator.clipboard.read();
+                      let found = false;
+                      for (const item of clipItems) {
+                        const imgType = item.types.find((t) => t.startsWith("image/"));
+                        if (imgType) {
+                          const blob = await item.getType(imgType);
+                          const pastedFile = new File([blob], `portapapeles-${Date.now()}.png`, { type: imgType });
+                          setImagenes((prev) => [...prev, pastedFile]);
+                          toast.success("¡Imagen pegada desde el portapapeles!");
+                          found = true;
+                          break;
+                        }
+                      }
+                      if (!found) toast.error("No se encontró imagen en el portapapeles. Copia una imagen e intenta de nuevo.");
+                    } catch {
+                      toast.error("Sin permiso para el portapapeles. Usa Ctrl+V en el editor de imagen.");
+                    }
+                  }}
+                  className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                >
+                  <Clipboard className="h-4 w-4" />
+                  Pegar imagen desde Portapapeles (Ctrl+V)
+                </button>
+
+                {/* Input de archivos */}
                 <div className="flex items-center gap-3 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-3 py-3">
                   <ImageIcon className="h-5 w-5 shrink-0 text-stone-400" />
                   <input
@@ -785,19 +822,19 @@ export default function AdminPage() {
                     type="file"
                     accept="image/*"
                     multiple
-                    onChange={(e) => setImagenes(Array.from(e.target.files ?? []))}
+                    onChange={(e) => setImagenes((prev) => [...prev, ...Array.from(e.target.files ?? [])])}
                     className="w-full text-sm text-stone-500 file:mr-3 file:rounded-full file:border-0 file:bg-emerald-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-emerald-700"
                   />
                 </div>
                 {imagenes.length > 0 && (
                   <div className="flex flex-col gap-2 mt-1">
                     <p className="text-xs font-semibold text-stone-600">
-                      {imagenes.length} nueva(s) imagen(es) seleccionada(s) — Toca "Editar" para retocar antes de publicar:
+                      {imagenes.length} nueva(s) imagen(es) — Toca &quot;Editar&quot; para retocar:
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {imagenes.map((file, idx) => (
                         <div key={idx} className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 p-2">
-                          <span className="max-w-[120px] truncate text-xs text-stone-700">{file.name}</span>
+                          <span className="max-w-[100px] truncate text-xs text-stone-700">{file.name}</span>
                           <button
                             type="button"
                             onClick={() => {
@@ -808,6 +845,14 @@ export default function AdminPage() {
                           >
                             <Pencil className="h-3 w-3" />
                             Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setImagenes((prev) => prev.filter((_, i) => i !== idx))}
+                            className="rounded-lg bg-rose-50 px-1.5 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-100"
+                            title="Quitar imagen"
+                          >
+                            ✕
                           </button>
                         </div>
                       ))}

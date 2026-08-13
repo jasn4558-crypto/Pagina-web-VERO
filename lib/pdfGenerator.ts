@@ -16,12 +16,18 @@ export interface OrderData {
   items: OrderItem[];
   created_at?: string;
   numero_pedido?: string;
+  provincia?: string;
+  canton?: string;
+  distrito?: string;
+  direccion_exacta?: string;
+  direccion?: {
+    provincia?: string;
+    canton?: string;
+    distrito?: string;
+    direccion_exacta?: string;
+  };
 }
 
-/**
- * Convierte cualquier URL de imagen en un DataURL en formato JPEG utilizando Canvas.
- * Incluye timeout para prevenir bloqueos si la imagen no responde.
- */
 async function loadImgAsDataUrl(
   url?: string
 ): Promise<{ dataUrl: string; format: "JPEG" } | null> {
@@ -42,7 +48,6 @@ async function loadImgAsDataUrl(
           resolve(null);
           return;
         }
-        // Fondo blanco para imágenes con transparencia
         ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
@@ -70,7 +75,6 @@ export async function generateOrderPDF(order: OrderData) {
     format: "a4",
   });
 
-  // Determinar número de orden consecutivo
   const numOrdenStr =
     order.numero_pedido ||
     order.items?.[0]?.numero_pedido ||
@@ -79,6 +83,12 @@ export async function generateOrderPDF(order: OrderData) {
   const fechaStr = order.created_at
     ? new Date(order.created_at).toLocaleString("es-CR")
     : new Date().toLocaleString("es-CR");
+
+  // Extraer información de dirección
+  const provincia = order.provincia || order.direccion?.provincia || "";
+  const canton = order.canton || order.direccion?.canton || "";
+  const distrito = order.distrito || order.direccion?.distrito || "";
+  const direccionExacta = order.direccion_exacta || order.direccion?.direccion_exacta || "";
 
   // 1. Encabezado principal (Banner Verde Esmeralda)
   doc.setFillColor(16, 185, 129); // Emerald-600
@@ -95,21 +105,45 @@ export async function generateOrderPDF(order: OrderData) {
 
   // 2. Tarjeta Informativa del Pedido
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(15, 38, 180, 28, 3, 3, "F");
+  doc.roundedRect(15, 36, 88, 30, 3, 3, "F");
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(15, 38, 180, 28, 3, 3, "S");
+  doc.roundedRect(15, 36, 88, 30, 3, 3, "S");
 
   doc.setTextColor(30, 41, 59);
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setFont("helvetica", "bold");
-  doc.text(`N° DE ORDEN: #${numOrdenStr}`, 20, 46);
-  doc.text(`FECHA Y HORA: ${fechaStr}`, 20, 53);
-  doc.text(`TELÉFONO WHATSAPP: ${order.telefono}`, 20, 60);
+  doc.text(`N° DE ORDEN: #${numOrdenStr}`, 19, 43);
+  doc.setFont("helvetica", "normal");
+  doc.text(`FECHA: ${fechaStr}`, 19, 49);
+  doc.text(`TELÉFONO: ${order.telefono}`, 19, 55);
+  doc.setFont("helvetica", "bold");
+  doc.text(`ESTADO: ${order.estado.toUpperCase()}`, 19, 61);
 
-  doc.text(`ESTADO: ${order.estado.toUpperCase()}`, 130, 46);
+  // 3. Tarjeta Informativa de Dirección de Envío
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(107, 36, 88, 30, 3, 3, "F");
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(107, 36, 88, 30, 3, 3, "S");
 
-  // 3. Encabezado de la Tabla de Productos
-  let y = 74;
+  doc.setTextColor(16, 185, 129); // Emerald
+  doc.setFontSize(9.5);
+  doc.setFont("helvetica", "bold");
+  doc.text("DIRECCIÓN DE ENTREGA", 111, 43);
+
+  doc.setTextColor(30, 41, 59);
+  doc.setFontSize(8.5);
+  doc.setFont("helvetica", "normal");
+
+  const ubicacionStr = [provincia, canton, distrito].filter(Boolean).join(", ");
+  doc.text(`Ubicación: ${ubicacionStr || "No especificada"}`, 111, 49);
+
+  const truncDireccion = direccionExacta
+    ? doc.splitTextToSize(`Detalle: ${direccionExacta}`, 80)
+    : ["Detalle: A coordinar vía WhatsApp"];
+  doc.text(truncDireccion, 111, 55);
+
+  // 4. Encabezado de la Tabla de Productos
+  let y = 73;
   doc.setFillColor(241, 245, 249);
   doc.rect(15, y, 180, 9, "F");
 
@@ -124,7 +158,7 @@ export async function generateOrderPDF(order: OrderData) {
 
   y += 12;
 
-  // Cargar imágenes de productos de forma asíncrona
+  // Cargar imágenes de productos
   const loadedImages = await Promise.all(
     (order.items ?? []).map((item) => loadImgAsDataUrl(item.imagen))
   );
@@ -136,13 +170,11 @@ export async function generateOrderPDF(order: OrderData) {
     const subtotalItem = precioUnit * (item.cantidad || 1);
     const imgData = loadedImages[index];
 
-    // Fondo alternado para filas
     if (index % 2 === 1) {
       doc.setFillColor(250, 250, 250);
       doc.rect(15, y - 3, 180, 16, "F");
     }
 
-    // Dibujar imagen o contenedor por defecto
     if (imgData) {
       try {
         doc.addImage(imgData.dataUrl, imgData.format, 18, y - 2, 14, 14);
@@ -178,52 +210,48 @@ export async function generateOrderPDF(order: OrderData) {
   doc.line(15, y, 195, y);
   y += 6;
 
-  // 4. Cuadro del Resumen de la Compra
+  // 5. Cuadro del Resumen de la Compra
   const summaryBoxY = y;
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(110, summaryBoxY, 85, 42, 3, 3, "F");
+  doc.roundedRect(105, summaryBoxY, 90, 44, 3, 3, "F");
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(110, summaryBoxY, 85, 42, 3, 3, "S");
+  doc.roundedRect(105, summaryBoxY, 90, 44, 3, 3, "S");
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(30, 41, 59);
-  doc.text("RESUMEN DE LA COMPRA", 115, summaryBoxY + 8);
+  doc.text("RESUMEN DE LA COMPRA", 110, summaryBoxY + 8);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text("Subtotal:", 115, summaryBoxY + 16);
+  doc.text("Subtotal:", 110, summaryBoxY + 16);
   doc.text(`CRC ${order.total.toLocaleString("es-CR")}`, 190, summaryBoxY + 16, {
     align: "right",
   });
 
-  const envioGratis = order.total >= 30000;
-  doc.text("Envío:", 115, summaryBoxY + 23);
-  doc.text(
-    envioGratis ? "Gratis" : "Por coordinar",
-    190,
-    summaryBoxY + 23,
-    { align: "right" }
-  );
+  doc.text("Costo de Envío:", 110, summaryBoxY + 23);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(16, 185, 129); // Emerald
+  doc.text("A convenir según lugar", 190, summaryBoxY + 23, { align: "right" });
 
   doc.setDrawColor(226, 232, 240);
-  doc.line(115, summaryBoxY + 27, 190, summaryBoxY + 27);
+  doc.line(110, summaryBoxY + 27, 190, summaryBoxY + 27);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(16, 185, 129); // Emerald
-  doc.text("TOTAL A PAGAR:", 115, summaryBoxY + 35);
-  doc.text(`CRC ${order.total.toLocaleString("es-CR")}`, 190, summaryBoxY + 35, {
+  doc.setFontSize(10.5);
+  doc.setTextColor(16, 185, 129);
+  doc.text("TOTAL ESTIMADO:", 110, summaryBoxY + 36);
+  doc.text(`CRC ${order.total.toLocaleString("es-CR")}`, 190, summaryBoxY + 36, {
     align: "right",
   });
 
-  // 5. Pie de página
+  // 6. Pie de página
   doc.setFont("helvetica", "italic");
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    "¡Gracias por comprar en Tienda Verónica! Para coordinar el envío o consultas contáctenos vía WhatsApp.",
+    "Nota: El precio del envío se coordina dependiendo del lugar de entrega. Nos comunicaremos vía WhatsApp.",
     105,
     282,
     { align: "center" }

@@ -10,11 +10,15 @@ import {
   Save,
   Loader2,
   RotateCcw,
-  Pipette,
   Trash2,
   ChevronDown,
   CheckCircle2,
   PaintBucket,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Clipboard,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -24,6 +28,10 @@ interface Overlay {
   font?: string;
   fontSize?: number;
   color?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
   img?: HTMLImageElement;
   x: number;
   y: number;
@@ -57,6 +65,17 @@ const BG_PRESETS = [
   { color: "#0f172a", label: "Negro" },
 ];
 
+const FONTS_LIST = [
+  "Arial",
+  "Georgia",
+  "Impact",
+  "Courier New",
+  "Verdana",
+  "Trebuchet MS",
+  "Times New Roman",
+  "Comic Sans MS",
+];
+
 export default function ProductImageEditor({
   productId,
   productName,
@@ -78,12 +97,24 @@ export default function ProductImageEditor({
   const [brushSize, setBrushSize] = useState(25);
   const [brushColor, setBrushColor] = useState("#ffffff");
   const [syncBgBrush, setSyncBgBrush] = useState(true);
+  
+  // Texto state
   const [textInput, setTextInput] = useState("");
   const [textFont, setTextFont] = useState("Arial");
   const [textColor, setTextColor] = useState("#111827");
+  const [textBold, setTextBold] = useState(false);
+  const [textItalic, setTextItalic] = useState(false);
+  const [textUnderline, setTextUnderline] = useState(false);
+  const [textStrikethrough, setTextStrikethrough] = useState(false);
+
   const [editTextVal, setEditTextVal] = useState("");
   const [editTextFont, setEditTextFont] = useState("Arial");
   const [editTextColor, setEditTextColor] = useState("#111827");
+  const [editTextBold, setEditTextBold] = useState(false);
+  const [editTextItalic, setEditTextItalic] = useState(false);
+  const [editTextUnderline, setEditTextUnderline] = useState(false);
+  const [editTextStrikethrough, setEditTextStrikethrough] = useState(false);
+
   const [openSection, setOpenSection] = useState<string | null>("imagen");
 
   // Save state
@@ -91,7 +122,7 @@ export default function ProductImageEditor({
   const [savedOk, setSavedOk] = useState(false);
   const [saveError, setSaveError] = useState("");
 
-  // Drag / resize state (use refs so event listeners don't stale-close)
+  // Drag / resize refs
   const isDraggingRef = useRef(false);
   const isResizingRef = useRef(false);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
@@ -108,13 +139,17 @@ export default function ProductImageEditor({
   useEffect(() => { brushSizeRef.current = brushSize; }, [brushSize]);
   useEffect(() => { syncRef.current = syncBgBrush; }, [syncBgBrush]);
 
-  // Keep activeOverlay in a ref so canvas event handlers can read it
+  // Sincronizar estado del elemento activo
   useEffect(() => {
     activeOverlayRef.current = activeOverlay;
     if (activeOverlay?.type === "text") {
       setEditTextVal(activeOverlay.text ?? "");
       setEditTextFont(activeOverlay.font ?? "Arial");
       setEditTextColor(activeOverlay.color ?? "#111827");
+      setEditTextBold(!!activeOverlay.bold);
+      setEditTextItalic(!!activeOverlay.italic);
+      setEditTextUnderline(!!activeOverlay.underline);
+      setEditTextStrikethrough(!!activeOverlay.strikethrough);
     }
   }, [activeOverlay]);
 
@@ -156,13 +191,37 @@ export default function ProductImageEditor({
     for (const item of overlaysRef.current) {
       ctx.save();
       if (item.type === "text") {
-        ctx.font = `bold ${item.fontSize ?? 36}px ${item.font ?? "Arial"}`;
+        const fontStyle = `${item.bold ? "bold " : ""}${item.italic ? "italic " : ""}${item.fontSize ?? 36}px ${item.font ?? "Arial"}`;
+        ctx.font = fontStyle;
         ctx.fillStyle = item.color ?? "#111827";
         ctx.textBaseline = "top";
         ctx.fillText(item.text ?? "", item.x, item.y);
+
         const m = ctx.measureText(item.text ?? "");
-        item.width = m.width;
-        item.height = item.fontSize ?? 36;
+        const textWidth = m.width;
+        const textHeight = item.fontSize ?? 36;
+        item.width = textWidth;
+        item.height = textHeight;
+
+        // Subrayado
+        if (item.underline) {
+          ctx.strokeStyle = item.color ?? "#111827";
+          ctx.lineWidth = Math.max(2, textHeight / 14);
+          ctx.beginPath();
+          ctx.moveTo(item.x, item.y + textHeight + 2);
+          ctx.lineTo(item.x + textWidth, item.y + textHeight + 2);
+          ctx.stroke();
+        }
+
+        // Tachado
+        if (item.strikethrough) {
+          ctx.strokeStyle = item.color ?? "#111827";
+          ctx.lineWidth = Math.max(2, textHeight / 14);
+          ctx.beginPath();
+          ctx.moveTo(item.x, item.y + textHeight / 2);
+          ctx.lineTo(item.x + textWidth, item.y + textHeight / 2);
+          ctx.stroke();
+        }
       } else if (item.type === "image" && item.img) {
         ctx.drawImage(item.img, item.x, item.y, item.width, item.height);
       }
@@ -180,7 +239,7 @@ export default function ProductImageEditor({
 
   useEffect(() => { render(); }, [render, bgColor, activeOverlay, isBrushMode]);
 
-  // ─── Cargar imagen base (File o URL) ──────────────────────────────────────────
+  // Cargar imagen base
   useEffect(() => {
     if (initialImageFile) {
       loadBaseImage(initialImageFile);
@@ -201,7 +260,25 @@ export default function ProductImageEditor({
     }
   }, [existingImages, initialImageFile]);
 
-  // ─── Helpers de coordenadas ─────────────────────────────────────────────────
+  // Pegado desde el Portapapeles (Ctrl+V)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!e.clipboardData) return;
+      const items = Array.from(e.clipboardData.items);
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            loadOverlayImage(file);
+          }
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, []);
+
   function getCoords(e: MouseEvent | TouchEvent): { x: number; y: number } {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
@@ -221,7 +298,6 @@ export default function ProductImageEditor({
     return x >= item.x && x <= item.x + item.width && y >= item.y && y <= item.y + item.height;
   }
 
-  // ─── Eventos del canvas ──────────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -314,7 +390,6 @@ export default function ProductImageEditor({
     };
   }, [isBrushMode, render]);
 
-  // ─── Cargar imagen base desde disco ─────────────────────────────────────────
   const loadBaseImage = (file: File) => {
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -357,6 +432,28 @@ export default function ProductImageEditor({
     reader.readAsDataURL(file);
   };
 
+  const handlePasteClipboard = async () => {
+    try {
+      if (!navigator.clipboard?.read) {
+        alert("Tu navegador no soporta lectura directa del portapapeles. Usa Ctrl+V.");
+        return;
+      }
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imgType = item.types.find((t) => t.startsWith("image/"));
+        if (imgType) {
+          const blob = await item.getType(imgType);
+          const file = new File([blob], `pasted-${Date.now()}.png`, { type: imgType });
+          loadOverlayImage(file);
+          return;
+        }
+      }
+      alert("No se encontró ninguna imagen en el portapapeles. Copia una foto y reintenta.");
+    } catch (err) {
+      alert("Para pegar la imagen, puedes usar el comando rápido Ctrl+V.");
+    }
+  };
+
   // ─── Añadir texto ────────────────────────────────────────────────────────────
   const addText = () => {
     if (!textInput.trim()) return;
@@ -366,6 +463,10 @@ export default function ProductImageEditor({
       font: textFont,
       fontSize: 42,
       color: textColor,
+      bold: textBold,
+      italic: textItalic,
+      underline: textUnderline,
+      strikethrough: textStrikethrough,
       x: CANVAS_SIZE / 2 - 100,
       y: CANVAS_SIZE / 2 - 25,
       width: 200,
@@ -388,9 +489,20 @@ export default function ProductImageEditor({
     render();
   };
 
+  const toggleActiveTextProp = (prop: "bold" | "italic" | "underline" | "strikethrough") => {
+    const o = activeOverlayRef.current;
+    if (!o || o.type !== "text") return;
+    o[prop] = !o[prop];
+    if (prop === "bold") setEditTextBold(!!o.bold);
+    if (prop === "italic") setEditTextItalic(!!o.italic);
+    if (prop === "underline") setEditTextUnderline(!!o.underline);
+    if (prop === "strikethrough") setEditTextStrikethrough(!!o.strikethrough);
+    render();
+  };
+
   const deleteActiveOverlay = () => {
     if (!activeOverlayRef.current) return;
-    overlaysRef.current = overlaysRef.current.filter(o => o !== activeOverlayRef.current);
+    overlaysRef.current = overlaysRef.current.filter((o) => o !== activeOverlayRef.current);
     activeOverlayRef.current = null;
     setActiveOverlay(null);
     render();
@@ -404,7 +516,6 @@ export default function ProductImageEditor({
     render();
   };
 
-  // ─── Guardar imagen en Supabase o retornar nuevo File ───────────────────────
   const handleSave = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -414,7 +525,7 @@ export default function ProductImageEditor({
     setSavedOk(false);
 
     try {
-      render(true); // Renderizar sin handles de selección
+      render(true);
       const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Canvas vacío"))), "image/jpeg", 0.92);
       });
@@ -440,7 +551,6 @@ export default function ProductImageEditor({
       const { data: urlData } = supabase.storage.from("tienda-archivos").getPublicUrl(filePath);
       const newUrl = urlData.publicUrl;
 
-      // Agregar la nueva imagen al producto (al inicio del array)
       const { data: prodData } = await supabase.from("productos").select("imagenes").eq("id", productId).single();
       const currentImages: string[] = Array.isArray(prodData?.imagenes) ? prodData.imagenes : [];
       const updatedImages = [newUrl, ...currentImages];
@@ -491,7 +601,7 @@ export default function ProductImageEditor({
         aria-hidden="true"
       />
 
-      {/* Panel lateral deslizante */}
+      {/* Panel lateral */}
       <div
         className="fixed right-0 top-0 z-50 flex h-full w-full max-w-5xl flex-col bg-white shadow-2xl animate-[slideInRight_0.3s_ease-out]"
         onClick={(e) => e.stopPropagation()}
@@ -501,7 +611,7 @@ export default function ProductImageEditor({
           <div>
             <h2 className="flex items-center gap-2 text-base font-bold text-white">
               <ImageIcon className="h-5 w-5" />
-              Editor de Imagen
+              Editor de Imagen & Tipografía
             </h2>
             <p className="mt-0.5 truncate text-xs text-emerald-100 max-w-xs">{productName}</p>
           </div>
@@ -515,13 +625,10 @@ export default function ProductImageEditor({
           </button>
         </div>
 
-        {/* Cuerpo: canvas arriba en móvil, panel de herramientas abajo */}
+        {/* Cuerpo */}
         <div className="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden">
-
-          {/* ── Canvas + controles flotantes (Primero en móvil) ── */}
+          {/* Canvas */}
           <div className="order-1 md:order-2 relative flex flex-1 flex-col items-center justify-center bg-stone-100 p-3 sm:p-6 shrink-0 md:shrink">
-
-            {/* Canvas */}
             <div className="relative w-full max-w-sm sm:max-w-md md:max-w-2xl overflow-hidden rounded-2xl shadow-xl" style={{ aspectRatio: "1 / 1" }}>
               <canvas
                 ref={canvasRef}
@@ -532,60 +639,85 @@ export default function ProductImageEditor({
               />
             </div>
 
-            {/* Barra de edición de texto activo */}
+            {/* BARRA DE EDICIÓN DE TEXTO ACTIVO CON FORMATO DE TIPOGRAFÍA */}
             {activeOverlay?.type === "text" && (
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white px-3 py-2 shadow-lg">
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white p-2.5 shadow-lg max-w-full">
                 <input
                   type="text"
                   value={editTextVal}
                   onChange={(e) => updateActiveText("text", e.target.value)}
-                  className="w-32 rounded-xl border border-stone-200 px-2 py-1 text-xs outline-none focus:border-emerald-500"
+                  className="w-28 rounded-xl border border-stone-200 px-2 py-1 text-xs outline-none focus:border-emerald-500"
                   placeholder="Editar texto"
                 />
+                
+                {/* Botones de formato tipográfico */}
+                <div className="flex items-center rounded-lg border border-stone-200 p-0.5 bg-stone-50">
+                  <button
+                    type="button"
+                    onClick={() => toggleActiveTextProp("bold")}
+                    className={`p-1 rounded-md transition-colors ${editTextBold ? "bg-emerald-600 text-white font-black" : "text-stone-700 hover:bg-stone-200"}`}
+                    title="Negrita"
+                  >
+                    <Bold className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleActiveTextProp("italic")}
+                    className={`p-1 rounded-md transition-colors ${editTextItalic ? "bg-emerald-600 text-white font-black" : "text-stone-700 hover:bg-stone-200"}`}
+                    title="Cursiva"
+                  >
+                    <Italic className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleActiveTextProp("underline")}
+                    className={`p-1 rounded-md transition-colors ${editTextUnderline ? "bg-emerald-600 text-white font-black" : "text-stone-700 hover:bg-stone-200"}`}
+                    title="Subrayado"
+                  >
+                    <Underline className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleActiveTextProp("strikethrough")}
+                    className={`p-1 rounded-md transition-colors ${editTextStrikethrough ? "bg-emerald-600 text-white font-black" : "text-stone-700 hover:bg-stone-200"}`}
+                    title="Tachado"
+                  >
+                    <Strikethrough className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
                 <select
                   value={editTextFont}
                   onChange={(e) => updateActiveText("font", e.target.value)}
                   className="rounded-xl border border-stone-200 px-2 py-1 text-xs outline-none"
                 >
-                  <option value="Arial">Arial</option>
-                  <option value="Georgia">Georgia</option>
-                  <option value="Impact">Impact</option>
-                  <option value="Courier New">Courier New</option>
-                  <option value="Verdana">Verdana</option>
+                  {FONTS_LIST.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
                 </select>
+                
                 <input
                   type="color"
                   value={editTextColor}
                   onChange={(e) => updateActiveText("color", e.target.value)}
                   className="h-7 w-7 cursor-pointer rounded-lg border border-stone-200 p-0"
+                  title="Color"
                 />
+                
                 <button
                   type="button"
                   onClick={deleteActiveOverlay}
                   className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
-                  title="Eliminar elemento"
+                  title="Eliminar texto"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             )}
 
-            {/* Barra de imagen activa */}
-            {activeOverlay?.type === "image" && (
-              <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-stone-200 bg-white px-3 py-2 shadow-lg w-full max-w-sm">
-                <span className="text-[11px] text-stone-500">Mueve o redimensiona en esquina</span>
-                <button
-                  type="button"
-                  onClick={deleteActiveOverlay}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
-                  title="Eliminar imagen"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Botón guardar */}
+            {/* Guardar */}
             <div className="mt-3 mb-2 flex flex-col items-center gap-1.5 w-full max-w-xs">
               {saveError && (
                 <p className="text-xs text-red-600 text-center rounded-xl bg-red-50 px-3 py-1.5 w-full">{saveError}</p>
@@ -617,16 +749,25 @@ export default function ProductImageEditor({
             </div>
           </div>
 
-          {/* ── Panel de herramientas (Segundo en móvil) ── */}
+          {/* Panel de herramientas */}
           <aside className="order-2 md:order-1 flex w-full md:w-80 shrink-0 flex-col border-t md:border-t-0 md:border-r border-stone-200 bg-stone-50 overflow-y-auto">
             <div className="flex flex-1 flex-col gap-3 p-4">
 
-              {/* 1. Imagen base */}
-              <Section id="imagen" title="Imagen del Producto" icon={<Upload className="h-4 w-4 text-emerald-600" />}>
-                <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-stone-300 p-5 text-center transition-colors hover:border-emerald-500 hover:bg-emerald-50/30">
-                  <Upload className="h-6 w-6 text-stone-400" />
+              {/* 1. Pegado desde Portapapeles & Cargar */}
+              <Section id="imagen" title="Imagen / Portapapeles" icon={<Upload className="h-4 w-4 text-emerald-600" />}>
+                <button
+                  type="button"
+                  onClick={handlePasteClipboard}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors mb-2"
+                >
+                  <Clipboard className="h-4 w-4" />
+                  Pegar de Portapapeles (Ctrl+V)
+                </button>
+
+                <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-stone-300 p-4 text-center transition-colors hover:border-emerald-500 hover:bg-emerald-50/30">
+                  <Upload className="h-5 w-5 text-stone-400" />
                   <span className="text-xs font-medium text-stone-600">
-                    {baseImage ? "Reemplazar imagen base" : "Cargar imagen del producto"}
+                    {baseImage ? "Reemplazar imagen base" : "Cargar imagen desde archivos"}
                   </span>
                   <input
                     type="file"
@@ -635,12 +776,9 @@ export default function ProductImageEditor({
                     onChange={(e) => e.target.files?.[0] && loadBaseImage(e.target.files[0])}
                   />
                 </label>
-                {existingImages[0] && !baseImage && (
-                  <p className="text-center text-xs text-stone-400">Cargando imagen actual...</p>
-                )}
               </Section>
 
-              {/* 2. Fondo */}
+              {/* 2. Color de fondo */}
               <Section id="fondo" title="Color de Fondo" icon={<PaintBucket className="h-4 w-4 text-emerald-600" />}>
                 <div className="flex flex-wrap gap-2">
                   {BG_PRESETS.map((p) => (
@@ -695,37 +833,12 @@ export default function ProductImageEditor({
                         className="w-28 accent-emerald-600"
                       />
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-xs text-stone-600">Color</label>
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1 text-xs text-stone-500 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={syncBgBrush}
-                            onChange={(e) => {
-                              setSyncBgBrush(e.target.checked);
-                              syncRef.current = e.target.checked;
-                              if (e.target.checked) setBrushColor(bgColor);
-                            }}
-                            className="accent-emerald-600"
-                          />
-                          Igual al fondo
-                        </label>
-                        <input
-                          type="color"
-                          value={brushColor}
-                          disabled={syncBgBrush}
-                          onChange={(e) => { setBrushColor(e.target.value); brushColorRef.current = e.target.value; }}
-                          className="h-7 w-7 rounded-full border border-stone-300 p-0 cursor-pointer disabled:opacity-40"
-                        />
-                      </div>
-                    </div>
                   </div>
                 )}
               </Section>
 
-              {/* 4. Añadir texto */}
-              <Section id="texto" title="Añadir Texto" icon={<Type className="h-4 w-4 text-emerald-600" />}>
+              {/* 4. Añadir texto con tipografía */}
+              <Section id="texto" title="Añadir Texto Tipográfico" icon={<Type className="h-4 w-4 text-emerald-600" />}>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -733,7 +846,7 @@ export default function ProductImageEditor({
                     onChange={(e) => setTextInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addText()}
                     placeholder="Ej: Envío Gratis"
-                    className="flex-1 rounded-xl border border-stone-200 px-3 py-2 text-xs outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    className="flex-1 rounded-xl border border-stone-200 px-3 py-2 text-xs outline-none focus:border-emerald-500"
                   />
                   <button
                     type="button"
@@ -743,17 +856,54 @@ export default function ProductImageEditor({
                     Añadir
                   </button>
                 </div>
+
+                {/* Formato tipográfico inicial */}
+                <div className="flex items-center justify-between gap-1 rounded-xl border border-stone-200 bg-stone-50 p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setTextBold((v) => !v)}
+                    className={`p-1.5 rounded-lg text-xs transition-colors ${textBold ? "bg-emerald-600 text-white font-black" : "text-stone-700 hover:bg-stone-200"}`}
+                    title="Negrita"
+                  >
+                    <Bold className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTextItalic((v) => !v)}
+                    className={`p-1.5 rounded-lg text-xs transition-colors ${textItalic ? "bg-emerald-600 text-white font-black" : "text-stone-700 hover:bg-stone-200"}`}
+                    title="Cursiva"
+                  >
+                    <Italic className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTextUnderline((v) => !v)}
+                    className={`p-1.5 rounded-lg text-xs transition-colors ${textUnderline ? "bg-emerald-600 text-white font-black" : "text-stone-700 hover:bg-stone-200"}`}
+                    title="Subrayado"
+                  >
+                    <Underline className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTextStrikethrough((v) => !v)}
+                    className={`p-1.5 rounded-lg text-xs transition-colors ${textStrikethrough ? "bg-emerald-600 text-white font-black" : "text-stone-700 hover:bg-stone-200"}`}
+                    title="Tachado"
+                  >
+                    <Strikethrough className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   <select
                     value={textFont}
                     onChange={(e) => setTextFont(e.target.value)}
                     className="rounded-xl border border-stone-200 px-2 py-2 text-xs outline-none"
                   >
-                    <option value="Arial">Arial</option>
-                    <option value="Georgia">Georgia</option>
-                    <option value="Impact">Impact</option>
-                    <option value="Courier New">Courier New</option>
-                    <option value="Verdana">Verdana</option>
+                    {FONTS_LIST.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
                   </select>
                   <input
                     type="color"
@@ -794,17 +944,6 @@ export default function ProductImageEditor({
           </aside>
         </div>
       </div>
-
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0.6; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </>
   );
 }
