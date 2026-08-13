@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { extractAddressFromOrder } from "./orderManager";
+import { extractAddressFromOrder, getProductItems } from "./orderUtils";
 
 export interface OrderItem {
   nombre: string;
@@ -151,13 +151,14 @@ export async function generateOrderPDF(order: OrderData) {
 
   y += 12;
 
-  // Cargar imágenes de productos
+  // Cargar imágenes de productos (excluir items especiales de metadata)
+  const productItems = getProductItems(order.items ?? []);
   const loadedImages = await Promise.all(
-    (order.items ?? []).map((item) => loadImgAsDataUrl(item.imagen))
+    productItems.map((item) => loadImgAsDataUrl(item.imagen))
   );
 
   // Renderizar filas de productos
-  (order.items ?? []).forEach((item, index) => {
+  productItems.forEach((item, index) => {
     const precioUnit =
       item.precio ? item.precio : Math.round(order.total / (item.cantidad || 1));
     const subtotalItem = precioUnit * (item.cantidad || 1);

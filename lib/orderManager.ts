@@ -1,5 +1,6 @@
 import type { CartItem } from "@/components/CartProvider";
 import { supabase } from "@/lib/supabase";
+export { extractAddressFromOrder } from "@/lib/orderUtils";
 
 export interface AddressData {
   provincia?: string;
@@ -82,33 +83,4 @@ export async function createOrder(
   }
 
   return numeroPedidoStr;
-}
-
-/**
- * Extrae la dirección de un pedido (desde columna `direccion` o desde items._tipo==="direccion")
- */
-export function extractAddressFromOrder(order: {
-  direccion?: Record<string, string> | null;
-  items?: any[];
-}): { provincia: string; canton: string; distrito: string; direccion_exacta: string } {
-  // Primero intentar columna direccion
-  if (order.direccion && order.direccion.provincia) {
-    return {
-      provincia: order.direccion.provincia || "",
-      canton: order.direccion.canton || "",
-      distrito: order.direccion.distrito || "",
-      direccion_exacta: order.direccion.direccion_exacta || "",
-    };
-  }
-  // Fallback: buscar en items
-  const dirItem = (order.items || []).find((i: any) => i._tipo === "direccion");
-  if (dirItem) {
-    return {
-      provincia: dirItem.provincia || "",
-      canton: dirItem.canton || "",
-      distrito: dirItem.distrito || "",
-      direccion_exacta: dirItem.direccion_exacta || "",
-    };
-  }
-  return { provincia: "", canton: "", distrito: "", direccion_exacta: "" };
 }
